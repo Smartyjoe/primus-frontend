@@ -1,23 +1,23 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@theme inline {
+@theme {
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0 0 0);
+  --color-border: oklch(0 0 0);
+  
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
 }
 
-:root {
-  --background: 0 0% 100%;
-  --foreground: 0 0% 0%;
-  --border: 0 0% 0%;
-}
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+    font-family: sans-serif;
+  }
 
-body {
-  @apply bg-background text-foreground;
-  font-family: sans-serif;
-}
-
-* {
-  @apply border-border;
+  * {
+    @apply border-border;
+  }
 }
