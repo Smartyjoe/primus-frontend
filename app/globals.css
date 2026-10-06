@@ -1,23 +1,211 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@theme {
-  --color-background: oklch(1 0 0);
-  --color-foreground: oklch(0 0 0);
-  --color-border: oklch(0 0 0);
-  
-  --radius-sm: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
+/* ─── Primus Director AI — Monochromatic Cinema Design System ─────────────── */
+
+@theme inline {
+  /* Pure B&W Palette */
+  --color-background:          oklch(0.063 0 0);   /* #0b0b0c near-black */
+  --color-foreground:          oklch(0.949 0 0);   /* #f1f1ef warm white */
+  --color-card:                oklch(0.094 0 0);   /* #181819 */
+  --color-card-foreground:     oklch(0.949 0 0);
+  --color-popover:             oklch(0.094 0 0);
+  --color-popover-foreground:  oklch(0.949 0 0);
+  --color-primary:             oklch(0.949 0 0);   /* white = primary accent */
+  --color-primary-foreground:  oklch(0.063 0 0);   /* black text on white */
+  --color-secondary:           oklch(0.155 0 0);   /* #252526 */
+  --color-secondary-foreground:oklch(0.75 0 0);
+  --color-muted:               oklch(0.155 0 0);
+  --color-muted-foreground:    oklch(0.55 0 0);    /* #8e8e8a mid-grey */
+  --color-accent:              oklch(0.205 0 0);
+  --color-accent-foreground:   oklch(0.949 0 0);
+  --color-destructive:         oklch(0.577 0.245 27.325);
+  --color-border:              oklch(1 0 0 / 9%);  /* white/9% hairline */
+  --color-input:               oklch(1 0 0 / 12%);
+  --color-ring:                oklch(0.6 0 0);
+
+  /* Sidebar tokens */
+  --color-sidebar:             oklch(0.094 0 0);
+  --color-sidebar-foreground:  oklch(0.75 0 0);
+  --color-sidebar-primary:     oklch(0.949 0 0);
+  --color-sidebar-primary-foreground: oklch(0.063 0 0);
+  --color-sidebar-accent:      oklch(0.155 0 0);
+  --color-sidebar-accent-foreground: oklch(0.949 0 0);
+  --color-sidebar-border:      oklch(1 0 0 / 8%);
+  --color-sidebar-ring:        oklch(0.5 0 0);
+
+  /* Radius */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0.125rem;
+  --radius-2xl: 0.25rem;
 }
+
+/* ─── Base ─────────────────────────────────────────────────────────────────── */
+
+html {
+  background: #0b0b0c;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+  font-family: 'DM Mono', 'Geist Mono', 'IBM Plex Mono', ui-monospace, monospace;
+  background: #0b0b0c;
+  color: #f1f1ef;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Preference: use DM Sans for prose labels, DM Mono for code/metric */
+.font-display {
+  font-family: 'DM Sans', 'Geist', system-ui, sans-serif;
+  letter-spacing: -0.045em;
+}
+
+::selection {
+  background: rgb(255 255 255 / 15%);
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgb(255 255 255 / 12%); }
+::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 22%); }
+
+/* ─── Layer: base ──────────────────────────────────────────────────────────── */
 
 @layer base {
-  body {
-    @apply bg-background text-foreground;
-    font-family: sans-serif;
+  * {
+    border-color: rgb(255 255 255 / 9%);
+    box-sizing: border-box;
   }
 
-  * {
-    @apply border-border;
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Sans', 'Geist', system-ui, sans-serif;
+    font-weight: 300;
+    letter-spacing: -0.045em;
+    color: #f1f1ef;
+  }
+
+  input, textarea, select {
+    background: transparent;
+    color: inherit;
+    outline: none;
+  }
+
+  button {
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 }
+
+/* ─── Component utilities ──────────────────────────────────────────────────── */
+
+@layer components {
+
+  /* Hairline border in the sample's style */
+  .border-hairline {
+    border: 1px solid rgb(255 255 255 / 9%);
+  }
+
+  /* Inverted primary action */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid rgb(255 255 255 / 20%);
+    padding: 0.625rem 1rem;
+    font-size: 0.75rem;
+    color: #fff;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-primary:hover {
+    background: #fff;
+    color: #000;
+  }
+
+  /* Solid white CTA */
+  .btn-solid {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #fff;
+    padding: 0.625rem 1rem;
+    font-size: 0.75rem;
+    color: #000;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+  .btn-solid:hover {
+    background: #d6d6d6;
+  }
+
+  /* Section label micro-caps */
+  .label-caps {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: #6f6f6b;
+  }
+
+  /* Shot thumbnail shimmer */
+  .shot-thumb {
+    background: linear-gradient(135deg, #242426 0%, #393939 50%, #1a1a1b 100%);
+  }
+
+  /* Active indicator stripe */
+  .nav-active-stripe {
+    position: absolute;
+    left: -0.75rem;
+    height: 1rem;
+    width: 2px;
+    background: #c0c0bb;
+  }
+
+  /* Grainy overlay for shot cards */
+  .grain-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.3;
+    pointer-events: none;
+  }
+}
+
+/* ─── Animations ───────────────────────────────────────────────────────────── */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.35s ease both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease both;
+}
+
+.animate-slide-right {
+  animation: slide-in-right 0.3s ease both;
+}
+
+.delay-100 { animation-delay: 0.1s; }
+.delay-150 { animation-delay: 0.15s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }

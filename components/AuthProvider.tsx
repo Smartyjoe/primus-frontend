@@ -22,9 +22,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClientComponentClient();
+  // Initialize Supabase client only if required env vars are present.
+  const supabase = (typeof window !== 'undefined' &&
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    ? createClientComponentClient()
+    : null;
 
   useEffect(() => {
+    if (!supabase) {
+      // No Supabase config; skip auth handling.
+      console.warn('[AuthProvider] Supabase env variables missing; auth disabled.');
+      setLoading(false);
+      return;
+    }
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);

@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Building2, PhoneCall, CheckCircle2, Loader2, ArrowRight, ShieldCheck, Copy, Clock } from 'lucide-react';
+import {
+  X, CreditCard, Building2, PhoneCall, CheckCircle2,
+  Loader2, ArrowRight, ShieldCheck, Copy, Clock,
+} from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface PaystackModalProps {
@@ -12,20 +15,25 @@ interface PaystackModalProps {
 }
 
 const PACKAGES = [
-  { id: 'starter', name: 'Starter Pack', credits: 250, priceNgn: 3750, priceUsd: 2.50, badge: 'Popular' },
-  { id: 'creator', name: 'Creator Pass', credits: 1000, priceNgn: 14000, priceUsd: 9.00, badge: 'Best Value' },
-  { id: 'studio', name: 'Studio Pro', credits: 5000, priceNgn: 65000, priceUsd: 42.00, badge: 'Scale' },
+  { id: 'starter', name: 'Starter Pack', credits: 250,  priceNgn: 3750,  priceUsd: 2.50,  badge: 'Popular'    },
+  { id: 'creator', name: 'Creator Pass', credits: 1000, priceNgn: 14000, priceUsd: 9.00,  badge: 'Best Value' },
+  { id: 'studio',  name: 'Studio Pro',   credits: 5000, priceNgn: 65000, priceUsd: 42.00, badge: 'Scale'      },
 ];
 
-export function PaystackModal({ isOpen, onClose, onSuccess, userEmail = 'creator@primusdirector.ai' }: PaystackModalProps) {
-  const [selectedPkg, setSelectedPkg] = useState(PACKAGES[0]);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'transfer' | 'ussd'>('card');
-  const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [payRef, setPayRef] = useState<string | null>(null);
-  const [authUrl, setAuthUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
+export function PaystackModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  userEmail = 'creator@primusdirector.ai',
+}: PaystackModalProps) {
+  const [selectedPkg,    setSelectedPkg]    = useState(PACKAGES[0]);
+  const [paymentMethod,  setPaymentMethod]  = useState<'card' | 'transfer' | 'ussd'>('card');
+  const [loading,        setLoading]        = useState(false);
+  const [verifying,      setVerifying]      = useState(false);
+  const [payRef,         setPayRef]         = useState<string | null>(null);
+  const [authUrl,        setAuthUrl]        = useState<string | null>(null);
+  const [copied,         setCopied]         = useState(false);
+  const [timeLeft,       setTimeLeft]       = useState(1800);
 
   useEffect(() => {
     if (!isOpen) {
@@ -33,6 +41,7 @@ export function PaystackModal({ isOpen, onClose, onSuccess, userEmail = 'creator
       setAuthUrl(null);
       setLoading(false);
       setVerifying(false);
+      setTimeLeft(1800);
     }
   }, [isOpen]);
 
@@ -56,11 +65,11 @@ export function PaystackModal({ isOpen, onClose, onSuccess, userEmail = 'creator
     try {
       const customRef = `PB_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const res = await api.initPaystackPayment({
-        email: userEmail,
-        amount: selectedPkg.priceNgn,
-        currency: 'NGN',
+        email:     userEmail,
+        amount:    selectedPkg.priceNgn,
+        currency:  'NGN',
         reference: customRef,
-        metadata: { credits: selectedPkg.credits, package_id: selectedPkg.id },
+        metadata:  { credits: selectedPkg.credits, package_id: selectedPkg.id },
       });
 
       if (res.success && res.data) {
@@ -68,14 +77,12 @@ export function PaystackModal({ isOpen, onClose, onSuccess, userEmail = 'creator
         const url = res.data.authorization_url || res.data.url;
         if (url) {
           setAuthUrl(url);
-          // If user chose card, open Paystack checkout window
-          if (paymentMethod === 'card') {
-            window.open(url, '_blank');
-          }
+          if (paymentMethod === 'card') window.open(url, '_blank');
         }
       }
     } catch (err: any) {
-      alert(`Payment Initialization Failed: ${err.message}`);
+      console.error('[paystack] init error:', err.message);
+      alert(`Payment initialization failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -86,13 +93,14 @@ export function PaystackModal({ isOpen, onClose, onSuccess, userEmail = 'creator
     setVerifying(true);
     try {
       const res = await api.verifyPaystackPayment(payRef);
-      if (res.success && res.data.status === 'success') {
+      if (res.success && res.data?.status === 'success') {
         onSuccess(selectedPkg.credits);
         onClose();
       } else {
-        alert('Payment verification in progress. If you completed transfer, please wait 30 seconds and try again.');
+        alert('Payment pending. If you sent the transfer, please wait 30 s and try again.');
       }
     } catch (err: any) {
+      console.error('[paystack] verify error:', err.message);
       alert(`Verification error: ${err.message}`);
     } finally {
       setVerifying(false);
@@ -106,56 +114,64 @@ export function PaystackModal({ isOpen, onClose, onSuccess, userEmail = 'creator
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#0d0f17] text-white shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4 bg-white/[0.02]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-400">
-              <ShieldCheck className="h-5 w-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 animate-fade-in">
+      <div className="relative w-full max-w-xl overflow-hidden border border-white/[0.09] bg-[#0d0d0e] text-[#f1f1ef] shadow-2xl">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between border-b border-white/[0.09] px-6 py-5">
+          <div className="flex items-center gap-4">
+            <div className="grid size-9 place-items-center border border-white/20">
+              <ShieldCheck className="size-4 text-[#c0c0bb]" />
             </div>
             <div>
-              <h2 className="text-base font-medium tracking-tight">Paystack Secured Wallet Checkout</h2>
-              <p className="text-xs text-gray-400">Top-up platform credits for AI video generation</p>
+              <h2 className="text-sm tracking-[-0.02em]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                Paystack Wallet Top-up
+              </h2>
+              <p className="text-[11px] text-[#777773]">Secured payments for SnapGen video credits</p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-white/10 hover:text-white">
-            <X className="h-5 w-5" />
+          <button
+            onClick={onClose}
+            className="text-[#6f6f6b] hover:text-white transition-colors"
+          >
+            <X className="size-5" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
-          {/* Package Selector */}
+        {/* ── Content ── */}
+        <div className="space-y-6 p-6 max-h-[82vh] overflow-y-auto">
+
+          {/* 1. Package selector */}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-3">
-              1. Select Credit Package
-            </label>
-            <div className="grid grid-cols-3 gap-3">
+            <p className="mb-3 label-caps">1. Select credit package</p>
+            <div className="grid grid-cols-3 gap-2">
               {PACKAGES.map((pkg) => {
                 const isSel = selectedPkg.id === pkg.id;
                 return (
                   <button
                     key={pkg.id}
                     onClick={() => { setSelectedPkg(pkg); setAuthUrl(null); }}
-                    className={`relative flex flex-col justify-between rounded-xl border p-4 text-left transition-all ${
+                    className={`relative flex flex-col justify-between border p-4 text-left transition-all ${
                       isSel
-                        ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10'
-                        : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+                        ? 'border-white bg-white/[0.05]'
+                        : 'border-white/[0.09] hover:border-white/30'
                     }`}
                   >
                     {pkg.badge && (
-                      <span className="absolute -top-2.5 right-3 rounded-full bg-purple-600 px-2 py-0.5 text-[9px] font-semibold text-white uppercase tracking-wider">
+                      <span className="absolute -top-2 right-3 bg-[#f1f1ef] px-2 py-0.5 text-[9px] font-semibold text-black uppercase tracking-wider">
                         {pkg.badge}
                       </span>
                     )}
                     <div>
-                      <p className="text-xs font-medium text-gray-300">{pkg.name}</p>
-                      <p className="mt-1 text-lg font-bold text-white">{pkg.credits.toLocaleString()} <span className="text-xs font-normal text-purple-400">CR</span></p>
+                      <p className="text-[11px] text-[#a5a5a2]">{pkg.name}</p>
+                      <p className="mt-1 text-lg font-light" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                        {pkg.credits.toLocaleString()}
+                        <span className="ml-1 text-[11px] text-[#777773]">CR</span>
+                      </p>
                     </div>
-                    <div className="mt-3 border-t border-white/5 pt-2 flex items-center justify-between text-xs text-gray-400">
-                      <span>₦{pkg.priceNgn.toLocaleString()}</span>
-                      <span className="text-[10px]">~${pkg.priceUsd}</span>
+                    <div className="mt-3 border-t border-white/[0.08] pt-2 flex items-center justify-between">
+                      <span className="text-[11px] text-[#c0c0bb]">₦{pkg.priceNgn.toLocaleString()}</span>
+                      <span className="text-[10px] text-[#6f6f6b]">~${pkg.priceUsd}</span>
                     </div>
                   </button>
                 );
@@ -163,94 +179,102 @@ export function PaystackModal({ isOpen, onClose, onSuccess, userEmail = 'creator
             </div>
           </div>
 
-          {/* Payment Method Selector */}
+          {/* 2. Payment method */}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-gray-400 block mb-3">
-              2. Choose Payment Method
-            </label>
-            <div className="grid grid-cols-3 gap-3">
+            <p className="mb-3 label-caps">2. Choose payment method</p>
+            <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'card', label: 'Debit/Credit Card', icon: CreditCard },
-                { id: 'transfer', label: 'Bank Transfer (NGN)', icon: Building2 },
-                { id: 'ussd', label: 'USSD Code', icon: PhoneCall },
+                { id: 'card',     label: 'Card',        icon: CreditCard },
+                { id: 'transfer', label: 'Bank Transfer', icon: Building2  },
+                { id: 'ussd',     label: 'USSD',        icon: PhoneCall  },
               ].map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
                   onClick={() => setPaymentMethod(id as any)}
-                  className={`flex items-center gap-2.5 rounded-xl border p-3 text-xs font-medium transition-all ${
+                  className={`flex flex-col items-center gap-2 border p-3 text-[11px] transition-all ${
                     paymentMethod === id
-                      ? 'border-blue-500 bg-blue-500/10 text-white'
-                      : 'border-white/10 bg-white/[0.02] text-gray-400 hover:text-white'
+                      ? 'border-white bg-white/[0.05] text-white'
+                      : 'border-white/[0.09] text-[#777773] hover:border-white/30 hover:text-[#c0c0bb]'
                   }`}
                 >
-                  <Icon className="h-4 w-4 text-blue-400" />
-                  <span>{label}</span>
+                  <Icon className="size-4" />
+                  {label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Paystack Virtual Bank Account Display (if Transfer selected or authUrl ready) */}
+          {/* 3. Transfer details (after init) */}
           {paymentMethod === 'transfer' && authUrl && (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+            <div className="border border-white/[0.09] p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
-                  <Building2 className="h-4 w-4" /> Paystack Virtual Account Details
+                <span className="flex items-center gap-2 text-xs text-[#c0c0bb]">
+                  <Building2 className="size-3.5" /> Virtual account details
                 </span>
-                <span className="flex items-center gap-1 text-[11px] font-mono text-gray-400">
-                  <Clock className="h-3 w-3" /> Expires in {formatTime(timeLeft)}
+                <span className="flex items-center gap-1 font-mono text-[11px] text-[#777773]">
+                  <Clock className="size-3" /> {formatTime(timeLeft)}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-xs bg-black/40 p-3 rounded-lg border border-white/5">
+
+              <div className="grid grid-cols-2 gap-3 bg-black/40 p-3 text-xs">
                 <div>
-                  <p className="text-[10px] text-gray-400">Bank Name</p>
-                  <p className="font-semibold text-white">Wema / Paystack Titan</p>
+                  <p className="label-caps mb-1">Bank Name</p>
+                  <p className="text-[#e5e5e1]">Wema / Paystack Titan</p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400">Account Name</p>
-                  <p className="font-semibold text-white">Primus AI — {selectedPkg.credits} CR</p>
+                  <p className="label-caps mb-1">Account Name</p>
+                  <p className="text-[#e5e5e1]">Primus AI — {selectedPkg.credits} CR</p>
                 </div>
-                <div className="col-span-2 flex items-center justify-between border-t border-white/5 pt-2">
+                <div className="col-span-2 flex items-center justify-between border-t border-white/[0.08] pt-2">
                   <div>
-                    <p className="text-[10px] text-gray-400">Account Number</p>
-                    <p className="font-mono text-base font-bold text-emerald-400">9948271034</p>
+                    <p className="label-caps mb-1">Account Number</p>
+                    <p className="font-mono text-base text-[#f1f1ef]">9948271034</p>
                   </div>
                   <button
                     onClick={() => copyToClipboard('9948271034')}
-                    className="flex items-center gap-1 rounded bg-white/10 px-2.5 py-1 text-[11px] font-medium text-gray-300 hover:bg-white/20"
+                    className="flex items-center gap-1 border border-white/20 px-2.5 py-1 text-[11px] text-[#c0c0bb] hover:bg-white hover:text-black transition-all"
                   >
-                    <Copy className="h-3 w-3" /> {copied ? 'Copied!' : 'Copy'}
+                    <Copy className="size-3" />
+                    {copied ? 'Copied!' : 'Copy'}
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Action Footer */}
-          <div className="border-t border-white/10 pt-4 flex items-center justify-between">
+          {/* ── Footer actions ── */}
+          <div className="border-t border-white/[0.09] pt-5 flex items-center justify-between">
             <div>
-              <p className="text-[11px] text-gray-400">Amount Due</p>
-              <p className="text-xl font-bold text-white">₦{selectedPkg.priceNgn.toLocaleString()}</p>
+              <p className="label-caps">Amount due</p>
+              <p className="mt-1 text-2xl font-light" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+                ₦{selectedPkg.priceNgn.toLocaleString()}
+              </p>
             </div>
 
             {!authUrl ? (
               <button
                 onClick={handleInitialize}
                 disabled={loading}
-                className="flex items-center gap-2 rounded-xl bg-purple-600 px-6 py-3 text-xs font-semibold text-white shadow-lg shadow-purple-600/30 hover:bg-purple-500 disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 bg-white px-5 py-3 text-xs font-medium text-black hover:bg-[#d6d6d6] disabled:opacity-50 transition-colors"
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                <span>Proceed to Paystack</span>
-                <ArrowRight className="h-4 w-4" />
+                {loading
+                  ? <Loader2 className="size-4 animate-spin" />
+                  : <ShieldCheck className="size-4" />
+                }
+                Proceed to Paystack
+                <ArrowRight className="size-4" />
               </button>
             ) : (
               <button
                 onClick={handleVerify}
                 disabled={verifying}
-                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-xs font-semibold text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 border border-white/40 px-5 py-3 text-xs text-white hover:bg-white hover:text-black disabled:opacity-50 transition-all"
               >
-                {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                <span>I Have Sent The Money</span>
+                {verifying
+                  ? <Loader2 className="size-4 animate-spin" />
+                  : <CheckCircle2 className="size-4" />
+                }
+                I have sent the money
               </button>
             )}
           </div>
