@@ -909,9 +909,12 @@ function SettingsView({ notify }: any) {
 // ─── Story / New Project View ─────────────────────────────────────────────────
 
 function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) {
-  const [title,   setTitle]   = useState('Cyberpunk Heist');
-  const [premise, setPremise] = useState('A courier steals a memory from the city that built her.');
-  const [loading, setLoading] = useState(false);
+  const [title,   setTitle]           = useState('Cyberpunk Heist');
+  const [premise, setPremise]         = useState('A courier steals a memory from the city that built her.');
+  const [estimatedMinutes, setEstimatedMinutes] = useState('5');
+  const [videoStyle, setVideoStyle]     = useState('realistic');
+  const [aspectRatio, setAspectRatio]   = useState('16:9');
+  const [loading, setLoading]         = useState(false);
 
   const handleCreate = async () => {
     if (!user) {
@@ -921,7 +924,14 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
 
     setLoading(true);
     try {
-      const res = await api.createProject({ title, premise });
+      const res = await api.createProject({
+        title,
+        premise,
+        visual_style: videoStyle,
+        aspect_ratio: aspectRatio,
+        target_duration_seconds: parseInt(estimatedMinutes) * 60,
+        ai_video_model: 'veo-3.1-lite',
+      });
       if (res.success && res.data) {
         onProjectCreated(res.data.id);
         notify('Project created!');
@@ -964,14 +974,43 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
           />
         </Field>
 
-        <Field label="Creative direction">
-          <div className="flex flex-wrap gap-2">
-            {['Moody', 'Kinetic', 'Character-led', 'Neon noir', '8–10 minutes'].map((tag) => (
+        <Field label="Estimated duration">
+          <div className="flex gap-2">
+            {['1', '5', '10'].map((min) => (
               <button
-                key={tag}
-                className="border border-white/20 px-3 py-2 text-xs text-[#bbb9c5] hover:border-white/50 transition-colors"
+                key={min}
+                onClick={() => setEstimatedMinutes(min)}
+                className={`px-3 py-2 text-xs border ${estimatedMinutes === min ? 'border-white text-white' : 'border-white/20 text-[#bbb9c5]'} hover:border-white/50 transition-colors`}
               >
-                {tag}
+                {min} min
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="Video style">
+          <div className="flex gap-2">
+            {['realistic', '2d', '3d'].map((style) => (
+              <button
+                key={style}
+                onClick={() => setVideoStyle(style)}
+                className={`px-3 py-2 text-xs border ${videoStyle === style ? 'border-white text-white' : 'border-white/20 text-[#bbb9c5]'} hover:border-white/50 transition-colors`}
+              >
+                {style}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="Aspect ratio">
+          <div className="flex gap-2">
+            {['9:16', '16:9'].map((ratio) => (
+              <button
+                key={ratio}
+                onClick={() => setAspectRatio(ratio)}
+                className={`px-3 py-2 text-xs border ${aspectRatio === ratio ? 'border-white text-white' : 'border-white/20 text-[#bbb9c5]'} hover:border-white/50 transition-colors`}
+              >
+                {ratio}
               </button>
             ))}
           </div>

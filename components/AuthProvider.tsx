@@ -52,6 +52,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const signIn = async () => {
+    if (!supabase) {
+      console.warn('[AuthProvider] Supabase not configured; cannot sign in.');
+      return;
+    }
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` }
@@ -59,6 +63,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    if (!supabase) {
+      console.warn('[AuthProvider] Supabase not configured; cannot sign out.');
+      return;
+    }
     await supabase.auth.signOut();
   };
 

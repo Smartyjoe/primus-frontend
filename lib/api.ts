@@ -70,6 +70,8 @@ export const api = {
     target_platform?: string;
     shot_duration?: number;
     target_duration?: string;
+    estimated_duration?: number;
+    target_duration_seconds?: number;
   }) {
     const res = await fetch(`${API_BASE_URL}/director/projects`, {
       method: 'POST',
