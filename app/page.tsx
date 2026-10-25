@@ -929,7 +929,7 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         premise,
         visual_style: videoStyle,
         aspect_ratio: aspectRatio,
-        target_duration_seconds: parseInt(estimatedMinutes) * 60,
+        estimated_duration: parseInt(estimatedMinutes) * 60,
         ai_video_model: 'veo-3.1-lite',
       });
       if (res.success && res.data) {
