@@ -21,11 +21,9 @@ interface ShotRegenerationDrawerProps {
   onShotRegenerated: (shotId: string, taskId: string) => void;
 }
 
-const CAMERA_MOVES = ['Slow Pan Left', 'Tracking Shot', 'Static Wide', 'Drone Flyover'];
+const CAMERA_MOVES = ['Slow Pan Left', 'Tracking Shot', 'Static Wide', 'Drone Flyover', 'Crash Zoom In', 'Orbit 360'];
 const MODELS = [
-  { value: 'veo-3.1-fast',  label: 'Veo 3.1 Fast — 25 CR (Recommended)' },
-  { value: 'veo-3.1',       label: 'Veo 3.1 Premium — 40 CR'             },
-  { value: 'omni-flash',    label: 'Omni Flash 10s — 50 CR'              },
+  { value: 'veo-3.1-lite', label: 'Veo 3.1 Lite — 4 CR (Studio Recommended)' },
 ];
 
 export function ShotRegenerationDrawer({
@@ -35,7 +33,7 @@ export function ShotRegenerationDrawer({
   onShotRegenerated,
 }: ShotRegenerationDrawerProps) {
   const [prompt,     setPrompt]     = useState('');
-  const [model,      setModel]      = useState('veo-3.1-fast');
+  const [model,      setModel]      = useState('veo-3.1-lite');
   const [cameraMove, setCameraMove] = useState('Slow Pan Left');
   const [loading,    setLoading]    = useState(false);
 

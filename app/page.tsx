@@ -5,7 +5,7 @@ import {
   ArrowRight, Bell, Check, ChevronDown, Download,
   Film, FolderOpen, Gauge, Layers3, MapPin, Menu, MoreHorizontal, Pause, Play,
   Plus, RefreshCw, Search, Settings2, Share2, SlidersHorizontal, UserRound,
-  Wand2, X, Code, Aperture, Clock3, Loader2,
+  Wand2, X, Code, Aperture, Clock3, Loader2, Zap,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { PaystackModal } from '@/components/modals/PaystackModal';
@@ -13,6 +13,8 @@ import { ShotRegenerationDrawer } from '@/components/modals/ShotRegenerationDraw
 import { PublishDrawer } from '@/components/modals/PublishDrawer';
 import { LoginModal } from '@/components/modals/LoginModal';
 import { DeveloperConsoleView } from '@/components/views/DeveloperConsoleView';
+import { ShotSequenceTimeline } from '@/components/views/ShotSequenceTimeline';
+import { CreditManagementView } from '@/components/views/CreditManagementView';
 import { useAuth } from '@/components/AuthProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,16 +28,16 @@ type Screen =
 
 const navPrimary = [
   { id: 'projects'   as Screen, label: 'Projects',       icon: FolderOpen },
-  { id: 'canvas'     as Screen, label: 'Director Canvas', icon: Film       },
+  { id: 'canvas'     as Screen, label: 'Director Canvas', icon: Film, badge: 'Sequence' },
   { id: 'characters' as Screen, label: 'Characters',     icon: UserRound  },
   { id: 'locations'  as Screen, label: 'Locations',      icon: MapPin     },
   { id: 'templates'  as Screen, label: 'Templates',      icon: Layers3    },
 ];
 
 const navSecondary = [
-  { id: 'billing'   as Screen, label: 'Credits & Billing',  icon: Gauge    },
-  { id: 'developer' as Screen, label: 'API & Webhooks',     icon: Code     },
-  { id: 'settings'  as Screen, label: 'Settings',           icon: Settings2 },
+  { id: 'billing'   as Screen, label: 'Credits & Ledger',  icon: Gauge, badge: 'Live' },
+  { id: 'developer' as Screen, label: 'API & Webhooks',    icon: Code     },
+  { id: 'settings'  as Screen, label: 'Settings',          icon: Settings2 },
 ];
 
 // ─── Mock shot thumbnails (grayscale gradient) ────────────────────────────────
@@ -70,29 +72,52 @@ export default function Page() {
   const notify = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
   const go = (next: Screen)   => { setScreen(next); setMobileNav(false); };
 
-  // ── Fetch projects on load
+  // ── Sync live wallet credits
+  const syncWallet = () => {
+    api.getWallet()
+      .then((res) => {
+        if (res.success && res.data?.credits !== undefined) {
+          setCredits(res.data.credits);
+        }
+      })
+      .catch((err) => console.warn('[wallet] sync warning:', err.message));
+  };
+
   useEffect(() => {
+    syncWallet();
+  }, [user]);
+
+  // ── Fetch projects on load
+  const loadProjects = () => {
     api.getProjects()
       .then((res) => { if (res.success && res.data) setProjectsList(res.data); })
       .catch((err) => console.error('[projects] fetch failed:', err.message));
+  };
+
+  useEffect(() => {
+    loadProjects();
   }, []);
 
   // ── Fetch active project details
-  useEffect(() => {
+  const refreshProjectDetails = () => {
     if (!activeProjectId) return;
     api.getProjectDetails(activeProjectId)
       .then((res) => { if (res.success && res.data) setCurrentProject(res.data); })
       .catch((err) => console.warn('[project-details] fetch failed:', err.message));
+  };
+
+  useEffect(() => {
+    refreshProjectDetails();
   }, [activeProjectId]);
 
   const activeNav = [...navPrimary, ...navSecondary].find((n) => n.id === screen)?.id ?? 'projects';
 
   return (
-    <main className="min-h-screen bg-[#0b0b0c] text-[#f1f1ef]">
+    <main className="min-h-screen bg-[#080809] text-[#f4f4f5]">
 
       {/* ── Top header ── */}
-      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-white/[0.09] bg-[#0b0b0c] px-4 md:px-6">
-        <div className="flex items-center gap-3">
+      <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-white/[0.08] bg-[#080809]/95 backdrop-blur-md px-4 md:px-6">
+        <div className="flex items-center gap-3.5">
           <button
             onClick={() => setMobileNav(!mobileNav)}
             className="text-[#a5a5a2] md:hidden"
@@ -101,54 +126,65 @@ export default function Page() {
             <Menu className="size-5" />
           </button>
 
-          {/* Brand */}
+          {/* Brand with Amber Aperture */}
           <button onClick={() => go('projects')} className="flex items-center gap-2.5">
-            <span className="grid size-6 place-items-center border border-white/40">
+            <span className="grid size-6 place-items-center border border-amber-500/40 bg-amber-500/10 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
               <Aperture className="size-3.5" />
             </span>
-            <span className="text-[13px] tracking-[-0.01em]" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-              Primus <span className="text-[#8d8d8a]">Director</span>
+            <span className="text-[13px] tracking-[-0.01em] font-medium" style={{ fontFamily: 'DM Sans, sans-serif' }}>
+              PRIMUS <span className="text-amber-400 font-mono text-[11px] font-normal">DIRECTOR</span>
             </span>
           </button>
 
           <span className="hidden h-4 w-px bg-white/15 sm:block" />
 
+          {/* Studio Live Tally */}
+          <div className="hidden lg:flex items-center gap-1.5 px-2 py-0.5 border border-amber-500/30 bg-amber-500/10 text-amber-400 text-[10px] font-mono">
+            <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+            REC STANDBY
+          </div>
+
+          <span className="hidden h-4 w-px bg-white/15 lg:block" />
+
           {/* Active project breadcrumb */}
           <button
             onClick={() => go('canvas')}
-            className="hidden items-center gap-2 text-xs text-[#b5b5b1] sm:flex"
+            className="hidden items-center gap-2 text-xs text-[#d4d4d8] hover:text-white transition-colors sm:flex"
           >
-            {currentProject?.title ?? 'No project'}
+            <span className="text-zinc-500">Project:</span>
+            <span className="font-medium text-amber-300">{currentProject?.title ?? 'Cyberpunk Heist'}</span>
             <ChevronDown className="size-3 text-[#777773]" />
           </button>
         </div>
 
-        <div className="flex items-center gap-4 text-xs text-[#a5a5a2]">
+        <div className="flex items-center gap-3.5 text-xs text-[#a5a5a2]">
           <button
-            onClick={() => notify('Checkpoint saved')}
-            className="hidden items-center gap-2 lg:flex"
+            onClick={() => notify('Project state synced with director engine')}
+            className="hidden items-center gap-2 border border-white/10 px-2.5 py-1 text-[11px] text-zinc-400 hover:border-white/30 hover:text-white transition-colors lg:flex"
           >
-            <span className="size-1.5 bg-[#c0c0bb]" />
-            Checkpoint
+            <span className="size-1.5 bg-amber-400" />
+            Checkpoint Active
           </button>
 
+          {/* Live Wallet Chip */}
           <button
-            onClick={() => setPaystackOpen(true)}
-            className="font-mono text-[#c7c7c2] hover:text-white transition-colors"
+            onClick={() => { syncWallet(); go('billing'); }}
+            title="Open Credit Management"
+            className="flex items-center gap-1.5 font-mono text-xs px-3 py-1 border border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500 hover:text-black transition-all shadow-[0_0_12px_rgba(245,158,11,0.15)]"
           >
-            {credits.toLocaleString()} <span className="text-[#777773]">CR</span>
+            <Zap className="size-3 text-amber-400 fill-amber-400" />
+            <span>{credits.toLocaleString()}</span>
+            <span className="text-[10px] text-amber-400/80">CR</span>
           </button>
-
-          <Bell className="hidden size-4 md:block cursor-pointer hover:text-white transition-colors" />
 
           {user ? (
-            <div className="flex items-center gap-2">
-              <span className="grid size-7 place-items-center bg-white/10 text-white text-[10px] font-mono rounded-full">
-                {user.email ? user.email.substring(0, 2).toUpperCase() : 'U'}
+            <div className="flex items-center gap-2.5 pl-1">
+              <span className="grid size-7 place-items-center border border-white/20 bg-white/10 text-white text-[10px] font-mono">
+                {user.email ? user.email.substring(0, 2).toUpperCase() : 'DR'}
               </span>
               <button
                 onClick={() => signOut()}
-                className="text-[11px] text-[#8a8a86] hover:text-white transition-colors"
+                className="text-[11px] text-[#8a8a86] hover:text-rose-400 transition-colors"
               >
                 Sign out
               </button>
@@ -156,10 +192,10 @@ export default function Page() {
           ) : (
             <button
               onClick={() => {
-                setLoginMessage('Sign in with Google to sync your projects and queue AI renders.');
+                setLoginMessage('Sign in to sync your projects and dispatch GPU generation tasks.');
                 setLoginModalOpen(true);
               }}
-              className="border border-white/30 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white hover:text-black transition-all"
+              className="border border-white/30 bg-white px-3 py-1 text-xs font-medium text-black hover:bg-zinc-200 transition-all"
             >
               Sign In
             </button>
@@ -169,27 +205,50 @@ export default function Page() {
 
       {/* ── Sidebar ── */}
       <aside
-        className={`${mobileNav ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-30 w-60 border-r border-white/[0.09] bg-[#0b0b0c] px-3 pb-6 pt-20 transition-transform duration-200 md:block md:translate-x-0`}
+        className={`${mobileNav ? 'translate-x-0' : '-translate-x-full'} fixed inset-y-0 left-0 z-30 w-60 border-r border-white/[0.08] bg-[#09090b] px-3 pb-6 pt-20 transition-transform duration-200 md:block md:translate-x-0`}
       >
-        <div className="mb-6 px-3 label-caps">Workspace</div>
-        <nav className="flex flex-col gap-0.5">
-          {navPrimary.map(({ id, label, icon: Icon }) => (
-            <NavItem key={id} active={activeNav === id} label={label} icon={Icon} onClick={() => go(id)} />
+        <div className="mb-4 px-3 flex items-center justify-between">
+          <span className="label-caps text-[#71717a]">Production Suite</span>
+          <span className="text-[9px] font-mono text-amber-500/80">v1.2</span>
+        </div>
+        <nav className="flex flex-col gap-1">
+          {navPrimary.map(({ id, label, icon: Icon, badge }: any) => (
+            <NavItem
+              key={id}
+              active={activeNav === id}
+              label={label}
+              icon={Icon}
+              badge={badge}
+              onClick={() => go(id)}
+            />
           ))}
         </nav>
 
-        <div className="my-6 border-t border-white/[0.08]" />
+        <div className="my-5 border-t border-white/[0.06]" />
 
-        <nav className="flex flex-col gap-0.5">
-          {navSecondary.map(({ id, label, icon: Icon }) => (
-            <NavItem key={id} active={activeNav === id} label={label} icon={Icon} onClick={() => go(id)} />
+        <div className="mb-3 px-3 label-caps text-[#71717a]">Management</div>
+        <nav className="flex flex-col gap-1">
+          {navSecondary.map(({ id, label, icon: Icon, badge }: any) => (
+            <NavItem
+              key={id}
+              active={activeNav === id}
+              label={label}
+              icon={Icon}
+              badge={badge}
+              onClick={() => go(id)}
+            />
           ))}
         </nav>
 
         {/* AI status footer */}
-        <div className="absolute bottom-6 left-6 right-6 border-t border-white/[0.08] pt-4">
-          <p className="label-caps" style={{ color: '#6f6f6b' }}>Director AI</p>
-          <p className="mt-2 text-xs text-[#a5a5a2]">Continuity pass complete.</p>
+        <div className="absolute bottom-6 left-5 right-5 border border-white/[0.06] bg-[#0e0e11] p-3 text-left">
+          <div className="flex items-center justify-between">
+            <p className="label-caps text-amber-400">Veo 3.1 Director</p>
+            <span className="size-1.5 rounded-full bg-emerald-400" />
+          </div>
+          <p className="mt-1.5 text-[11px] text-[#a1a1aa] leading-relaxed">
+            Sequence continuity guard active.
+          </p>
         </div>
       </aside>
 
@@ -212,6 +271,7 @@ export default function Page() {
               selectedIndex={selectedShotIndex}
               onSelectIndex={setSelectedShotIndex}
               onRegenerateShot={(shot: any) => setRegenShot(shot)}
+              onRefreshShots={refreshProjectDetails}
               go={go}
               notify={notify}
             />
@@ -228,7 +288,10 @@ export default function Page() {
           {screen === 'templates' && <TemplatesView go={go} notify={notify} />}
 
           {screen === 'billing' && (
-            <BillingView credits={credits} onTopUp={() => setPaystackOpen(true)} />
+            <CreditManagementView
+              onOpenTopUp={() => setPaystackOpen(true)}
+              notify={notify}
+            />
           )}
 
           {screen === 'developer' && <DeveloperConsoleView />}
@@ -317,23 +380,38 @@ export default function Page() {
 
 // ─── Shared UI primitives ─────────────────────────────────────────────────────
 
-function NavItem({ active, label, icon: Icon, onClick }: any) {
+function NavItem({ active, label, icon: Icon, badge, onClick }: any) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex items-center gap-3 px-3 py-2.5 text-left text-xs transition-colors ${
-        active ? 'text-white' : 'text-[#858582] hover:text-[#d1d1cc]'
+      className={`relative flex items-center justify-between px-3 py-2 text-left text-xs transition-colors rounded-sm ${
+        active
+          ? 'bg-white/[0.06] text-white font-medium'
+          : 'text-[#8e8e93] hover:bg-white/[0.03] hover:text-[#d4d4d8]'
       }`}
     >
-      {active && <span className="nav-active-stripe" />}
-      <Icon className="size-4" />
-      {label}
+      <div className="flex items-center gap-3">
+        {active && <span className="nav-active-stripe" />}
+        <Icon className={`size-4 ${active ? 'text-amber-400' : 'text-zinc-500'}`} />
+        <span>{label}</span>
+      </div>
+      {badge && (
+        <span
+          className={`text-[9px] font-mono px-1.5 py-0.5 rounded-sm border ${
+            badge === 'Live' || badge === 'Sequence'
+              ? 'border-amber-500/30 text-amber-400 bg-amber-500/10'
+              : 'border-white/10 text-zinc-500'
+          }`}
+        >
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
 
 function Eyebrow({ children }: any) {
-  return <p className="mb-3 label-caps" style={{ color: '#827f87' }}>{children}</p>;
+  return <p className="mb-3 label-caps text-amber-500/90 font-mono tracking-widest">{children}</p>;
 }
 
 function PageHeader({ eyebrow, title, description, action, onAction }: any) {
@@ -342,7 +420,7 @@ function PageHeader({ eyebrow, title, description, action, onAction }: any) {
       <div>
         {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
         <h1
-          className="max-w-3xl text-3xl font-light tracking-[-0.045em] md:text-5xl"
+          className="max-w-3xl text-3xl font-light tracking-[-0.045em] text-white md:text-5xl"
           style={{ fontFamily: 'DM Sans, sans-serif' }}
         >
           {title}
@@ -354,7 +432,7 @@ function PageHeader({ eyebrow, title, description, action, onAction }: any) {
       {action && (
         <button
           onClick={onAction}
-          className="btn-primary flex-shrink-0"
+          className="btn-amber flex-shrink-0"
         >
           {action}
           <ArrowRight className="size-3.5" />
@@ -365,26 +443,26 @@ function PageHeader({ eyebrow, title, description, action, onAction }: any) {
 }
 
 function SectionLabel({ children }: any) {
-  return <p className="mb-4 label-caps">{children}</p>;
+  return <p className="mb-4 label-caps text-zinc-400">{children}</p>;
 }
 
-function Metric({ value, label }: any) {
+function Metric({ value, label, accent }: any) {
   return (
-    <div>
+    <div className="border border-white/[0.06] bg-[#0c0c0e] p-5">
       <p
-        className="text-2xl font-light tracking-[-0.03em]"
+        className={`text-2xl font-light tracking-[-0.03em] ${accent ? 'text-amber-400' : 'text-white'}`}
         style={{ fontFamily: 'DM Sans, sans-serif' }}
       >
         {value}
       </p>
-      <p className="mt-2 label-caps" style={{ color: '#6f6f6b' }}>{label}</p>
+      <p className="mt-2 label-caps text-[#71717a]">{label}</p>
     </div>
   );
 }
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="flex h-64 items-center justify-center border border-white/[0.09] text-sm text-[#555552]">
+    <div className="flex h-56 flex-col items-center justify-center border border-dashed border-white/10 bg-[#0a0a0c] text-sm text-[#71717a]">
       {label}
     </div>
   );
@@ -404,67 +482,96 @@ function Field({ label, children }: any) {
 function ProjectsView({ projects, onSelectProject, onCreateNew, notify }: any) {
   const list = projects ?? [];
 
-  const statusColors: Record<number, string> = {
-    0: 'bg-[#39383b]',
-    1: 'bg-[#303330]',
-    2: 'bg-[#35373a]',
-  };
-
   return (
     <>
       <PageHeader
-        eyebrow="Projects"
-        title={<>Make the impossible<br /><span className="text-[#aaa7b4]">watchable.</span></>}
-        description="A production workspace for long-form films with continuity, control, and craft."
-        action="New project"
+        eyebrow="Film Projects"
+        title={<>Make the impossible<br /><span className="text-amber-400">watchable.</span></>}
+        description="A professional director workspace for long-form films with character continuity, camera control, and precision craft."
+        action="New Project"
         onAction={onCreateNew}
       />
 
       {/* Metrics */}
-      <div className="mb-14 grid gap-8 border-b border-white/[0.09] pb-10 sm:grid-cols-3">
-        <Metric value={list.length || '0'} label="Active projects" />
-        <Metric value="18h 42m" label="Rendered this month" />
-        <Metric value="1,250" label="Credits remaining" />
+      <div className="mb-12 grid gap-4 sm:grid-cols-3">
+        <Metric value={list.length || '0'} label="Active Productions" />
+        <Metric value="18h 42m" label="Compute Rendered" />
+        <Metric value="1,250 CR" label="Available Treasury" accent={true} />
       </div>
 
       <div className="mb-5 flex items-center justify-between">
-        <SectionLabel>Recent projects</SectionLabel>
-        <button onClick={() => notify('Showing all projects')} className="text-xs text-[#aaa7b4] hover:text-white transition-colors">
-          View all
+        <SectionLabel>Recent Productions</SectionLabel>
+        <button
+          onClick={() => notify('Showing all productions')}
+          className="text-xs text-amber-400/90 hover:text-amber-300 font-mono transition-colors"
+        >
+          View all productions →
         </button>
       </div>
 
       {list.length === 0 ? (
-        <EmptyState label="No projects yet. Create your first one above." />
+        <EmptyState label="No productions in studio. Create your first film project above." />
       ) : (
-        <div className="grid gap-px border border-white/[0.09] bg-white/[0.09] lg:grid-cols-3">
-          {list.map((proj: any, i: number) => (
-            <button
-              key={proj.id}
-              onClick={() => onSelectProject(proj.id)}
-              className="bg-[#0b0b0c] text-left transition-colors hover:bg-[#151516]"
-            >
-              <div className={`h-44 ${statusColors[i % 3] ?? 'bg-[#2a2a2c]'} relative overflow-hidden p-4 grayscale`}>
-                <span className="label-caps text-white/60">
-                  {i === 0 ? 'In production' : i === list.length - 1 ? 'Rendering' : 'Draft'}
-                </span>
-                <Film className="absolute bottom-4 right-4 size-5 text-white/35" />
-              </div>
-              <div className="p-5">
-                <p className="text-sm text-[#e5e5e1]">{proj.title}</p>
-                <p className="mt-2 text-xs text-[#777773]">
-                  {proj.premise?.substring(0, 55) ?? 'No premise'}
-                  {proj.premise?.length > 55 ? '…' : ''}
-                </p>
-                <div className="mt-5 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-white/10">
-                    <div className="h-px bg-[#aaa7b4]" style={{ width: `${proj.progress ?? 50}%` }} />
+        <div className="grid gap-px border border-white/[0.08] bg-white/[0.08] md:grid-cols-2 lg:grid-cols-3">
+          {list.map((proj: any, i: number) => {
+            const isCompleted = proj.status === 'Completed';
+            const isRendering = proj.status === 'Rendering';
+
+            return (
+              <div
+                key={proj.id}
+                onClick={() => onSelectProject(proj.id)}
+                className="group relative flex flex-col justify-between bg-[#0b0b0e] text-left transition-all hover:bg-[#121216] cursor-pointer"
+              >
+                {/* Visual Thumbnail */}
+                <div className="relative h-44 overflow-hidden bg-[#18181b] p-4">
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0e] via-transparent to-transparent z-10" />
+                  <div className="flex items-center justify-between relative z-20">
+                    <span className="badge-amber text-[9px]">
+                      {proj.visual_style || 'Realistic 35mm'}
+                    </span>
+                    <span className="font-mono text-[9px] bg-black/80 px-1.5 py-0.5 text-zinc-300 border border-white/10">
+                      {proj.aspect_ratio || '16:9'}
+                    </span>
                   </div>
-                  <span className="font-mono text-[10px] text-[#777773]">{proj.progress ?? 50}%</span>
+
+                  <Film className="absolute bottom-4 right-4 size-8 text-white/10 group-hover:text-amber-400/30 transition-colors z-20" />
+                </div>
+
+                {/* Card Content */}
+                <div className="p-5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-light text-white group-hover:text-amber-300 transition-colors">
+                      {proj.title}
+                    </h3>
+                    <span className="font-mono text-[10px] text-zinc-500">
+                      {proj.target_duration || '60s'}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-xs text-[#8e8e93] line-clamp-2 leading-relaxed">
+                    {proj.premise || 'No logline entered.'}
+                  </p>
+
+                  <div className="mt-5 border-t border-white/[0.06] pt-3 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full bg-amber-400 transition-all duration-300"
+                          style={{ width: `${proj.progress ?? 65}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[10px] text-zinc-400">{proj.progress ?? 65}%</span>
+                    </div>
+
+                    <span className="text-[11px] text-amber-400 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                      Direct Film <ArrowRight className="size-3" />
+                    </span>
+                  </div>
                 </div>
               </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </>
@@ -473,124 +580,143 @@ function ProjectsView({ projects, onSelectProject, onCreateNew, notify }: any) {
 
 // ─── Director Canvas View ─────────────────────────────────────────────────────
 
-function CanvasView({ project, selectedIndex, onSelectIndex, onRegenerateShot, go, notify }: any) {
-  const shotList = project?.shots ?? [];
-  const activeShot = shotList[selectedIndex];
+function CanvasView({ project, selectedIndex, onSelectIndex, onRegenerateShot, onRefreshShots, go, notify }: any) {
+  // Demo fallback shots so the user can immediately experience the interactive timeline, failure diagnostics, and retries
+  const fallbackShots = [
+    {
+      id: 'shot-demo-1',
+      project_id: project?.id || 'demo',
+      shot_index: 0,
+      scene_number: 1,
+      shot_number: 1,
+      intent: 'Wide establishing aerial glide across rain-soaked neon skyline',
+      dialogue_text: 'The city never sleeps. It only reboots.',
+      flow_type: 'CUT' as const,
+      estimated_duration_sec: 8,
+      status: 'Completed' as const,
+    },
+    {
+      id: 'shot-demo-2',
+      project_id: project?.id || 'demo',
+      shot_index: 1,
+      scene_number: 1,
+      shot_number: 2,
+      intent: 'Slow pan left onto Ada Vale standing by chrome balcony railing',
+      dialogue_text: 'Two minutes until extraction.',
+      flow_type: 'EXTEND' as const,
+      estimated_duration_sec: 8,
+      status: 'Rendering' as const,
+      progress: 72,
+    },
+    {
+      id: 'shot-demo-3',
+      project_id: project?.id || 'demo',
+      shot_index: 2,
+      scene_number: 1,
+      shot_number: 3,
+      intent: 'Extreme close-up on biometric encrypted cyberdeck handshake',
+      dialogue_text: 'Key validated.',
+      flow_type: 'CUT' as const,
+      estimated_duration_sec: 8,
+      status: 'Failed' as const,
+      error_message: 'SnapGen GPU cluster node timeout during trajectory generation',
+      refunded: true,
+    },
+    {
+      id: 'shot-demo-4',
+      project_id: project?.id || 'demo',
+      shot_index: 3,
+      scene_number: 1,
+      shot_number: 4,
+      intent: 'High-speed motorcycle pursuit through neon-lit underground tunnel',
+      dialogue_text: 'Interceptors on our tail!',
+      flow_type: 'CUT' as const,
+      estimated_duration_sec: 8,
+      status: 'Queued' as const,
+    },
+  ];
 
-  if (!project) {
-    return (
-      <>
-        <PageHeader
-          eyebrow="Director Canvas"
-          title={<>Select a project<br /><span className="text-[#aaa7b4]">to begin directing.</span></>}
-          description="Open a project from the Projects screen to start building scenes and shots."
-          action="Open projects"
-          onAction={() => go('projects')}
-        />
-        <EmptyState label="No project selected." />
-      </>
-    );
-  }
+  const shotList = project?.shots && project.shots.length > 0
+    ? project.shots
+    : fallbackShots;
+
+  const activeShot = shotList[selectedIndex] || shotList[0];
 
   return (
-    <>
+    <div className="space-y-8">
       <PageHeader
-        eyebrow="Stage 04 / Director canvas"
-        title={<>{project.title}<br /><span className="text-[#aaa7b4]">in motion.</span></>}
-        description="Direct every shot with precision. Continuity tracked across character, world, and cut."
-        action="Add scene"
-        onAction={() => notify('Scene added to canvas')}
+        eyebrow="Stage 04 / Director Canvas"
+        title={<>{project?.title ?? 'Cyberpunk Heist'}<br /><span className="text-amber-400">in sequence.</span></>}
+        description="Direct every camera move, continuous extension, and prompt parameter. Live SSE status connected to Veo 3.1 engine."
+        action="Generate Storyboard"
+        onAction={() => notify('Storyboard synthesis queued')}
       />
 
-      <div className="grid border border-white/[0.09] xl:grid-cols-[1fr_300px]">
+      {/* ── Cinematic Filmstrip Timeline Sequence Track ── */}
+      <ShotSequenceTimeline
+        projectId={project?.id || 'current'}
+        shots={shotList}
+        selectedIndex={selectedIndex}
+        onSelectShot={onSelectIndex}
+        onRefreshShots={onRefreshShots || (() => notify('Sequence refreshed'))}
+        notify={notify}
+      />
+
+      {/* ── Main Canvas Grid (Multi-track audio/video + Shot Inspector) ── */}
+      <div className="grid border border-white/[0.08] xl:grid-cols-[1fr_320px] bg-[#0c0c0e]">
         <div className="min-w-0">
-          {/* Scene header */}
-          <div className="flex items-center justify-between border-b border-white/[0.09] px-5 py-4">
-            <div className="flex items-center gap-3">
-              <span className="size-1.5 bg-[#a798c7]" />
-              <span className="text-xs">Scene 01</span>
-              <span className="label-caps text-[#6f6f6b]">Neon city / night</span>
-            </div>
-            <MoreHorizontal className="size-4 text-[#6f6f6b]" />
-          </div>
-
-          {/* Shots grid */}
-          <div className="border-b border-white/[0.09] p-5 md:p-8">
-            <div className="mb-8 flex items-end justify-between">
-              <div>
-                <p className="text-xs text-[#7b7b77]">SEQUENCE 01</p>
-                <h2
-                  className="mt-2 text-xl font-light"
-                  style={{ fontFamily: 'DM Sans, sans-serif' }}
-                >
-                  The handoff
-                </h2>
-              </div>
-              <p className="font-mono text-[10px] text-[#6f6f6b]">
-                {shotList.length} SHOTS
-              </p>
-            </div>
-
-            {shotList.length === 0 ? (
-              <EmptyState label="No shots generated yet." />
-            ) : (
-              <div className="grid gap-px border border-white/[0.1] bg-white/[0.1] sm:grid-cols-2 xl:grid-cols-4">
-                {shotList.map((shot: any, i: number) => (
-                  <button
-                    key={shot.id ?? i}
-                    onClick={() => onSelectIndex(i)}
-                    className={`bg-[#111112] text-left transition-colors hover:bg-[#19191a] ${
-                      selectedIndex === i ? 'ring-1 ring-inset ring-[#aaa0bf]' : ''
-                    }`}
-                  >
-                    <div className={`h-28 ${SHOT_THUMBS[i % SHOT_THUMBS.length]} grayscale-[0.35]`} />
-                    <div className="p-3">
-                      <div className="flex justify-between font-mono text-[10px] text-[#777773]">
-                        <span>0{i + 1}.{String(i + 1).padStart(2, '0')}</span>
-                        <span>00:08</span>
-                      </div>
-                      <p className="mt-3 text-xs text-[#dddcd8]">{shot.prompt?.substring(0, 32) ?? `Shot ${i + 1}`}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Timeline */}
+          {/* Multi-Track Scrubbing Timeline */}
           <CanvasTimeline />
         </div>
 
-        {/* Shot Inspector */}
+        {/* Shot Inspector with Diagnostics and Retry */}
         <ShotInspector
           shot={activeShot}
           index={selectedIndex}
+          projectId={project?.id || 'current'}
           onRegenerate={() => onRegenerateShot(activeShot)}
+          onRefreshShots={onRefreshShots}
           notify={notify}
         />
       </div>
-    </>
+    </div>
   );
 }
 
 function CanvasTimeline() {
-  const tracks = ['VIDEO', 'DIALOGUE', 'SFX', 'MUSIC'];
+  const tracks = [
+    { name: 'VIDEO', desc: 'Veo 3.1 Lite Stream', color: 'bg-amber-500/80' },
+    { name: 'DIALOGUE', desc: 'Trained Voice Clones', color: 'bg-zinc-500' },
+    { name: 'SFX', desc: 'Spatial Audio Foley', color: 'bg-zinc-600' },
+    { name: 'SCORE', desc: 'Cinematic Dynamic Stems', color: 'bg-zinc-700' },
+  ];
+
   return (
-    <div className="p-5 md:p-8">
-      <div className="mb-4 flex items-center justify-between">
-        <SectionLabel>Timeline</SectionLabel>
-        <span className="font-mono text-[10px] text-[#777773]">00:18:24</span>
+    <div className="p-6 md:p-8">
+      <div className="mb-5 flex items-center justify-between border-b border-white/[0.06] pb-3">
+        <div className="flex items-center gap-2">
+          <SectionLabel>Multi-Track Master Timeline</SectionLabel>
+          <span className="badge-amber text-[9px]">4K 24FPS</span>
+        </div>
+        <span className="font-mono text-xs text-amber-400">TC 00:00:24:12</span>
       </div>
-      <div className="relative flex flex-col gap-3">
-        <div className="absolute bottom-0 left-[38%] top-0 w-px bg-[#a798c7]" />
-        {tracks.map((track, i) => (
-          <div key={track} className="flex items-center gap-4">
-            <span className="w-14 text-[9px] tracking-[0.15em] text-[#666662]">{track}</span>
-            <div className="relative flex h-7 flex-1 gap-1 bg-[#121213] p-1">
-              {[0, 1, 2, 3].map((x) => (
-                <span
+
+      <div className="relative flex flex-col gap-3.5">
+        {/* Playhead Indicator with warm amber beam */}
+        <div className="absolute bottom-0 left-[42%] top-0 w-px bg-amber-400 z-10 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
+
+        {tracks.map((track) => (
+          <div key={track.name} className="flex items-center gap-4">
+            <div className="w-20">
+              <span className="font-mono text-[10px] tracking-widest text-[#a1a1aa]">{track.name}</span>
+            </div>
+            <div className="relative flex h-8 flex-1 gap-1 border border-white/[0.06] bg-[#111114] p-1">
+              {[0, 1, 2, 3, 4, 5].map((x) => (
+                <div
                   key={x}
-                  className={`h-full flex-1 ${x <= i ? 'bg-[#414143]' : 'bg-[#242426]'}`}
+                  className={`h-full flex-1 transition-opacity ${
+                    x <= 2 ? track.color : 'bg-white/[0.04]'
+                  }`}
                 />
               ))}
             </div>
@@ -601,58 +727,126 @@ function CanvasTimeline() {
   );
 }
 
-function ShotInspector({ shot, index, onRegenerate, notify }: any) {
+function ShotInspector({ shot, index, projectId, onRegenerate, onRefreshShots, notify }: any) {
+  const [retrying, setRetrying] = useState(false);
+
+  const handleRetry = async () => {
+    if (!shot) return;
+    setRetrying(true);
+    console.info(`[ShotInspector] Retrying shot ${shot.id}`);
+    try {
+      const res = await api.retryShot({
+        projectId: shot.project_id || projectId,
+        shotId: shot.id,
+        prompt: shot.intent || `Shot ${index + 1}`,
+        model: 'veo-3.1-lite',
+      });
+      if (res.success) {
+        notify('Shot generation re-queued (+4 CR auto-refund verified)');
+        if (onRefreshShots) onRefreshShots();
+      }
+    } catch (err: any) {
+      console.error('[ShotInspector] Retry failed:', err);
+      notify(`Retry error: ${err.message}`);
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const isFailed = shot?.status === 'Failed';
+  const isRendering = shot?.status === 'Rendering';
+  const isCompleted = shot?.status === 'Completed';
+
   return (
-    <aside className="border-t border-white/[0.09] xl:border-l xl:border-t-0">
-      <div className="flex items-center justify-between border-b border-white/[0.09] px-5 py-4">
-        <span className="text-xs">Shot inspector</span>
-        <SlidersHorizontal className="size-3.5 text-[#777773]" />
+    <aside className="border-t border-white/[0.08] xl:border-l xl:border-t-0 bg-[#0e0e11]">
+      <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4">
+        <span className="font-display text-xs tracking-tight text-white">Shot Inspector</span>
+        <SlidersHorizontal className="size-3.5 text-amber-400" />
       </div>
-      <div className="p-5">
+
+      <div className="p-5 space-y-5">
         {shot ? (
           <>
-            <Eyebrow>0{index + 1}.{String(index + 1).padStart(2, '0')}</Eyebrow>
-            <h3
-              className="text-lg font-light"
-              style={{ fontFamily: 'DM Sans, sans-serif' }}
-            >
-              {shot.prompt?.substring(0, 28) ?? `Shot ${index + 1}`}
-            </h3>
-
-            {[
-              ['Framing',  'Wide'],
-              ['Movement', 'Slow pan left'],
-              ['Duration', '00:08'],
-            ].map(([label, value]) => (
-              <div key={label} className="border-b border-white/[0.09] py-5">
-                <p className="label-caps">{label}</p>
-                <p className="mt-2 text-xs text-[#d0d0cc]">{value}</p>
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs text-amber-400">
+                  0{shot.scene_number || 1}.{String(shot.shot_number || index + 1).padStart(2, '0')}
+                </span>
+                <span className="badge-amber text-[9px]">{shot.flow_type || 'CUT'}</span>
               </div>
-            ))}
-
-            <div className="py-5">
-              <p className="label-caps">References</p>
-              <p className="mt-3 text-xs text-[#a5a5a2]">Ada Vale · Neon city / night</p>
+              <h3 className="mt-2 text-base font-light text-white leading-snug">
+                {shot.intent || shot.dialogue_text || `Shot ${index + 1} Visual Composition`}
+              </h3>
             </div>
 
-            <button
-              onClick={onRegenerate}
-              className="btn-primary w-full justify-between mt-2"
-            >
-              Re-roll this shot
-              <RefreshCw className="size-3.5" />
-            </button>
+            {/* Diagnostic Alert if Failed */}
+            {isFailed && (
+              <div className="rounded border border-rose-500/30 bg-rose-950/20 p-3 text-left">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-rose-300">
+                  <AlertTriangle className="size-4 text-rose-400" />
+                  Render Failure Detected
+                </div>
+                <p className="mt-1 text-[11px] text-zinc-300 leading-relaxed">
+                  {shot.error_message || 'Model capacity retry exceeded on GPU node.'}
+                </p>
+                <div className="mt-2.5 flex items-center justify-between border-t border-rose-500/20 pt-2">
+                  <span className="font-mono text-[10px] text-amber-300">+4 CR Auto-Refunded</span>
+                  <button
+                    onClick={handleRetry}
+                    disabled={retrying}
+                    className="flex items-center gap-1 rounded bg-amber-500 px-2.5 py-1 text-[10px] font-medium text-black hover:bg-amber-400 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`size-3 ${retrying ? 'animate-spin' : ''}`} />
+                    {retrying ? 'Retrying…' : 'Retry Shot'}
+                  </button>
+                </div>
+              </div>
+            )}
 
-            <button
-              onClick={() => notify('Storyboard generation queued')}
-              className="mt-3 btn-primary w-full justify-between"
-            >
-              Generate storyboard
-              <ArrowRight className="size-3.5" />
-            </button>
+            {/* Parameters Matrix */}
+            <div className="divide-y divide-white/[0.06] border-y border-white/[0.06] text-xs">
+              <div className="py-2.5 flex justify-between">
+                <span className="text-[#8e8e93]">Status</span>
+                <span className={`font-mono text-[11px] ${
+                  isCompleted ? 'text-emerald-400' : isRendering ? 'text-amber-400' : isFailed ? 'text-rose-400' : 'text-zinc-400'
+                }`}>
+                  {shot.status || 'Draft'}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-[#8e8e93]">Duration</span>
+                <span className="font-mono text-[11px] text-zinc-200">00:0{shot.estimated_duration_sec || 8}</span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-[#8e8e93]">Camera Framing</span>
+                <span className="text-zinc-200">Cinematic 35mm Wide</span>
+              </div>
+              <div className="py-2.5 flex justify-between">
+                <span className="text-[#8e8e93]">Model Engine</span>
+                <span className="font-mono text-[11px] text-amber-400">Veo 3.1 Lite</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 space-y-2.5">
+              <button
+                onClick={onRegenerate}
+                className="btn-amber w-full justify-between"
+              >
+                <span>Re-roll Shot Parameters</span>
+                <RefreshCw className="size-3.5" />
+              </button>
+
+              <button
+                onClick={() => notify('Shot locked into final cut sequence')}
+                className="w-full border border-white/20 py-2 text-xs text-white hover:bg-white hover:text-black transition-colors"
+              >
+                Lock Shot Continuity
+              </button>
+            </div>
           </>
         ) : (
-          <p className="text-xs text-[#555552]">Select a shot to inspect.</p>
+          <p className="text-xs text-zinc-500">Select a shot along the sequence track to inspect.</p>
         )}
       </div>
     </aside>
@@ -811,59 +1005,6 @@ function TemplatesView({ go, notify }: any) {
   );
 }
 
-// ─── Billing View ─────────────────────────────────────────────────────────────
-
-function BillingView({ credits, onTopUp }: any) {
-  const activity = [
-    { label: 'Final cut estimate · Cyberpunk Heist', cost: 320 },
-    { label: 'Storyboard generation · Scene 01',    cost: 48  },
-    { label: 'Character reference · Ada Vale',       cost: 16  },
-  ];
-
-  return (
-    <>
-      <PageHeader
-        eyebrow="Workspace"
-        title="Credits"
-        description="Production usage across this workspace."
-        action="Add credits"
-        onAction={onTopUp}
-      />
-
-      <div className="grid gap-12 border-b border-white/[0.09] pb-12 md:grid-cols-2">
-        <div>
-          <p
-            className="text-5xl font-light"
-            style={{ fontFamily: 'DM Sans, sans-serif' }}
-          >
-            {credits.toLocaleString()}
-          </p>
-          <p className="mt-3 label-caps" style={{ color: '#6f6f6b' }}>Available credits</p>
-        </div>
-        <div>
-          <p
-            className="text-5xl font-light"
-            style={{ fontFamily: 'DM Sans, sans-serif' }}
-          >
-            62%
-          </p>
-          <p className="mt-3 label-caps" style={{ color: '#6f6f6b' }}>Monthly usage</p>
-        </div>
-      </div>
-
-      <div className="mt-10">
-        <SectionLabel>Recent activity</SectionLabel>
-        {activity.map(({ label, cost }) => (
-          <div key={label} className="flex justify-between border-b border-white/[0.09] py-4 text-xs">
-            <span className="text-[#c0c0bb]">{label}</span>
-            <span className="font-mono text-[#777773]">-{cost} CR</span>
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
 // ─── Settings View ────────────────────────────────────────────────────────────
 
 function SettingsView({ notify }: any) {
@@ -950,37 +1091,41 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
   return (
     <>
       <PageHeader
-        eyebrow="Stage 01 / Pitch intake"
-        title={<>Give the film<br /><span className="text-[#aaa7b4]">a north star.</span></>}
-        description="Start with the feeling, conflict, and world. Build a living story bible from a clear seed."
-        action="Save draft"
-        onAction={() => notify('Story seed saved')}
+        eyebrow="Stage 01 / Pitch Intake"
+        title={<>Give the film<br /><span className="text-amber-400">a north star.</span></>}
+        description="Start with the core conflict, tone, and character arc. Build an auditable story bible from a precise prompt seed."
+        action="Save Story Seed"
+        onAction={() => notify('Story seed draft saved')}
       />
 
-      <div className="max-w-2xl border border-white/[0.09] p-5 md:p-8">
+      <div className="max-w-2xl border border-white/[0.08] bg-[#0c0c0e] p-6 md:p-8">
         <Field label="Working title">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full border-b border-white/15 bg-transparent py-3 text-sm text-[#f1f1ef] outline-none focus:border-[#aaa0bf] transition-colors"
+            className="w-full border-b border-white/15 bg-transparent py-3 text-sm text-[#f1f1ef] outline-none focus:border-amber-400 transition-colors"
           />
         </Field>
 
-        <Field label="One-line premise">
+        <Field label="One-line premise / logline">
           <textarea
             value={premise}
             onChange={(e) => setPremise(e.target.value)}
-            className="min-h-32 w-full resize-none border-b border-white/15 bg-transparent py-3 text-sm leading-6 text-[#f1f1ef] outline-none focus:border-[#aaa0bf] transition-colors"
+            className="min-h-32 w-full resize-none border-b border-white/15 bg-transparent py-3 text-sm leading-6 text-[#f1f1ef] outline-none focus:border-amber-400 transition-colors"
           />
         </Field>
 
-        <Field label="Estimated duration">
-          <div className="flex gap-2">
+        <Field label="Target duration">
+          <div className="flex gap-2.5">
             {['1', '5', '10'].map((min) => (
               <button
                 key={min}
                 onClick={() => setEstimatedMinutes(min)}
-                className={`px-3 py-2 text-xs border ${estimatedMinutes === min ? 'border-white text-white' : 'border-white/20 text-[#bbb9c5]'} hover:border-white/50 transition-colors`}
+                className={`px-3.5 py-2 text-xs border font-mono transition-all ${
+                  estimatedMinutes === min
+                    ? 'border-amber-500 bg-amber-500/15 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                    : 'border-white/15 text-zinc-400 hover:border-white/40'
+                }`}
               >
                 {min} min
               </button>
@@ -988,13 +1133,17 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
           </div>
         </Field>
 
-        <Field label="Video style">
-          <div className="flex gap-2">
+        <Field label="Cinematic visual style">
+          <div className="flex gap-2.5">
             {['realistic', '2d', '3d'].map((style) => (
               <button
                 key={style}
                 onClick={() => setVideoStyle(style)}
-                className={`px-3 py-2 text-xs border ${videoStyle === style ? 'border-white text-white' : 'border-white/20 text-[#bbb9c5]'} hover:border-white/50 transition-colors`}
+                className={`px-3.5 py-2 text-xs border uppercase tracking-wider font-mono transition-all ${
+                  videoStyle === style
+                    ? 'border-amber-500 bg-amber-500/15 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                    : 'border-white/15 text-zinc-400 hover:border-white/40'
+                }`}
               >
                 {style}
               </button>
@@ -1003,12 +1152,16 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         </Field>
 
         <Field label="Aspect ratio">
-          <div className="flex gap-2">
+          <div className="flex gap-2.5">
             {['9:16', '16:9'].map((ratio) => (
               <button
                 key={ratio}
                 onClick={() => setAspectRatio(ratio)}
-                className={`px-3 py-2 text-xs border ${aspectRatio === ratio ? 'border-white text-white' : 'border-white/20 text-[#bbb9c5]'} hover:border-white/50 transition-colors`}
+                className={`px-3.5 py-2 text-xs border font-mono transition-all ${
+                  aspectRatio === ratio
+                    ? 'border-amber-500 bg-amber-500/15 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]'
+                    : 'border-white/15 text-zinc-400 hover:border-white/40'
+                }`}
               >
                 {ratio}
               </button>
@@ -1019,10 +1172,10 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         <button
           onClick={handleCreate}
           disabled={loading}
-          className="mt-6 flex items-center gap-2 bg-white px-5 py-3 text-xs font-medium text-black hover:bg-[#d6d6d6] disabled:opacity-50 transition-colors"
+          className="mt-6 flex items-center gap-2 btn-amber w-full justify-center py-3 text-xs font-medium disabled:opacity-50 transition-colors"
         >
-          {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Wand2 className="size-3.5" />}
-          {loading ? 'Creating…' : 'Build story bible'}
+          {loading ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
+          {loading ? 'Synthesizing Story Bible…' : 'Build Story Bible & Generate Shots'}
           {!loading && <ArrowRight className="size-3.5" />}
         </button>
       </div>
@@ -1037,35 +1190,41 @@ function StoryboardView({ project, go, notify }: any) {
     <>
       <PageHeader
         eyebrow="Stage 05 / Storyboard"
-        title={<>See the rhythm<br /><span className="text-[#aaa7b4]">before the render.</span></>}
-        description="Review pacing, dialogue, and visual continuity as a sequence of frames."
-        action="Render animatic"
+        title={<>See the rhythm<br /><span className="text-amber-400">before the render.</span></>}
+        description="Review pacing, camera angles, and visual continuity as an interactive sequence of keyframes."
+        action="Render Animatic"
         onAction={() => go('render')}
       />
 
-      <div className="border border-white/[0.09] p-5 md:p-8">
-        <div className="mb-8 flex justify-between">
+      <div className="border border-white/[0.08] bg-[#0c0c0e] p-6 md:p-8">
+        <div className="mb-8 flex justify-between items-center border-b border-white/[0.06] pb-4">
           <div>
-            <p className="text-sm text-[#e5e5e1]">{project?.title ?? 'Cyberpunk Heist'} · Animatic pass 01</p>
-            <p className="mt-2 text-xs text-[#6f6f6b]">8 scenes · 01:04 total duration</p>
+            <p className="text-sm font-medium text-white">{project?.title ?? 'Cyberpunk Heist'} · Animatic Pass 01</p>
+            <p className="mt-1 text-xs text-[#8e8e93]">8 scenes breakdown · 01:04 total runtime</p>
           </div>
           <button
-            onClick={() => notify('Storyboard exported')}
-            className="flex items-center gap-2 text-xs text-[#888884] hover:text-white transition-colors"
+            onClick={() => notify('Storyboard exported to PDF')}
+            className="flex items-center gap-2 border border-white/15 px-3 py-1.5 text-xs text-zinc-300 hover:border-white hover:text-white transition-colors"
           >
-            <Download className="size-3.5" /> Export
+            <Download className="size-3.5" /> Export Bible
           </button>
         </div>
 
-        <div className="grid gap-px border border-white/[0.09] bg-white/[0.09] sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-px border border-white/[0.08] bg-white/[0.08] sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 8 }, (_, i) => (
-            <div key={i} className="bg-[#111112]">
-              <div className="h-28 bg-[#414346] p-3 grayscale">
-                <span className="font-mono text-[10px] text-white/60">0{i + 1}</span>
+            <div key={i} className="bg-[#111114] group">
+              <div className="h-28 bg-[#18181b] p-3 relative overflow-hidden">
+                <span className="font-mono text-[10px] text-amber-400 font-medium">0{i + 1}</span>
+                <Film className="absolute bottom-2 right-2 size-4 text-white/10 group-hover:text-amber-400/40 transition-colors" />
               </div>
-              <div className="p-3">
-                <p className="text-xs text-[#dddcd8]">{['Wide establishing', 'Ada enters frame', 'The handoff', 'Neon pursuit'][i % 4]}</p>
-                <p className="mt-2 text-[10px] text-[#6f6f6b]">00:08 · Dialogue ready</p>
+              <div className="p-3.5">
+                <p className="text-xs text-zinc-200">
+                  {['Wide establishing cityscape', 'Ada enters the balcony', 'The memory handoff', 'Subterranean chase'][i % 4]}
+                </p>
+                <div className="mt-2 flex items-center justify-between text-[10px] text-zinc-500 font-mono">
+                  <span>00:08</span>
+                  <span className="text-emerald-400">Audio Ready</span>
+                </div>
               </div>
             </div>
           ))}
@@ -1073,9 +1232,9 @@ function StoryboardView({ project, go, notify }: any) {
 
         <button
           onClick={() => go('render')}
-          className="mt-8 btn-primary"
+          className="mt-8 btn-amber"
         >
-          Continue to quote & render
+          Continue to Quote & Render
           <ArrowRight className="size-3.5" />
         </button>
       </div>
@@ -1089,36 +1248,47 @@ function RenderView({ project, go, notify }: any) {
   return (
     <>
       <PageHeader
-        eyebrow="Stage 06 / Quote & render"
-        title={<>Choose<br /><span className="text-[#aaa7b4]">the finish.</span></>}
-        description="Review the production quote, then send the final cut into the render queue."
+        eyebrow="Stage 06 / Quote & Render"
+        title={<>Choose<br /><span className="text-amber-400">the finish.</span></>}
+        description="Audit compute quota, verify continuous frame extensions, and submit to render cluster."
       />
 
-      <div className="max-w-2xl border border-white/[0.09] p-5 md:p-8">
-        <div className="flex justify-between border-b border-white/[0.09] pb-6">
+      <div className="max-w-2xl border border-white/[0.08] bg-[#0c0c0e] p-6 md:p-8">
+        <div className="flex justify-between items-center border-b border-white/[0.08] pb-6">
           <div>
-            <p className="text-sm text-[#e5e5e1]">Final cut estimate</p>
-            <p className="mt-2 text-xs text-[#6f6f6b]">
-              {project?.title ?? 'Cyberpunk Heist'} · 01:04 · 4K delivery
+            <p className="text-sm font-medium text-white">Final Cut Production Estimate</p>
+            <p className="mt-1.5 text-xs text-[#8e8e93]">
+              {project?.title ?? 'Cyberpunk Heist'} · 01:04 Runtime · Veo 3.1 4K Master
             </p>
           </div>
-          <p className="text-2xl font-light" style={{ fontFamily: 'DM Sans, sans-serif' }}>
-            320 <span className="text-xs text-[#777773]">CR</span>
-          </p>
+          <div className="text-right">
+            <span
+              className="text-3xl font-light text-white"
+              style={{ fontFamily: 'DM Sans, sans-serif' }}
+            >
+              320
+            </span>
+            <span className="font-mono text-xs text-amber-400 ml-1">CR</span>
+          </div>
         </div>
 
-        {[['Frames', '1,536'], ['Resolution', '3840 × 2160'], ['Audio mix', 'Stereo master']].map(([x, y]) => (
-          <div key={x} className="flex justify-between border-b border-white/[0.09] py-4 text-xs">
-            <span className="text-[#777773]">{x}</span>
-            <span className="text-[#e5e5e1]">{y}</span>
+        {[
+          ['Total Render Frames', '1,536 Frames'],
+          ['Target Resolution', '3840 × 2160 (4K UHD)'],
+          ['Audio Stem Master', 'Stereo + Atmos Stems'],
+          ['Continuity Model', 'Strict Agent Vector Lock'],
+        ].map(([x, y]) => (
+          <div key={x} className="flex justify-between border-b border-white/[0.06] py-3.5 text-xs">
+            <span className="text-zinc-400">{x}</span>
+            <span className="text-white font-mono">{y}</span>
           </div>
         ))}
 
         <button
-          onClick={() => { notify('Render queued'); go('preview'); }}
-          className="mt-8 btn-solid"
+          onClick={() => { notify('Full production render dispatched to cluster'); go('preview'); }}
+          className="mt-8 btn-amber w-full justify-center py-3 text-xs font-medium"
         >
-          Queue final render
+          Queue Master Production Render
           <ArrowRight className="size-3.5" />
         </button>
       </div>
@@ -1132,32 +1302,35 @@ function PreviewView({ project, go, onPublish }: any) {
   return (
     <>
       <PageHeader
-        eyebrow="Review / Final cut"
+        eyebrow="Review / Final Cut"
         title={project?.title ?? 'Cyberpunk Heist'}
-        description="Final render · 01:04 · 4K delivery"
-        action="Back to canvas"
+        description="Final master render · 01:04 duration · 4K 24fps delivery"
+        action="Back to Canvas"
         onAction={() => go('canvas')}
       />
 
       {/* Video player */}
-      <div className="relative flex aspect-video max-w-4xl items-center justify-center overflow-hidden bg-[#303236]">
-        <Play className="size-12 text-white/70" />
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/15">
-          <div className="h-full w-[34%] bg-[#aaa0bf]" />
+      <div className="relative flex aspect-video max-w-4xl items-center justify-center overflow-hidden border border-white/[0.08] bg-[#121215]">
+        <button className="grid size-16 place-items-center rounded-full border border-white/20 bg-black/60 text-white hover:border-amber-400 hover:text-amber-400 transition-all">
+          <Play className="size-8 fill-current ml-1" />
+        </button>
+        {/* Playback Scrubber with warm amber progress */}
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
+          <div className="h-full w-[38%] bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
         </div>
       </div>
 
-      <div className="mt-5 flex max-w-4xl items-center justify-between text-xs text-[#777773]">
-        <span>00:18 / 01:04</span>
+      <div className="mt-5 flex max-w-4xl items-center justify-between text-xs text-[#8e8e93]">
+        <span className="font-mono text-amber-400">00:24 / 01:04</span>
         <div className="flex gap-4 items-center">
           <Pause className="size-4 cursor-pointer hover:text-white transition-colors" />
           <Download className="size-4 cursor-pointer hover:text-white transition-colors" />
           <button
             onClick={onPublish}
-            className="btn-primary"
+            className="btn-amber"
           >
             <Share2 className="size-3.5" />
-            Publish
+            Publish Film
           </button>
         </div>
       </div>

@@ -213,6 +213,7 @@ export const api = {
 
   // ─── Paystack Payments ───────────────────────────────────────────────────────
   async initPaystackPayment(data: { email: string; amount: number; currency?: string; reference?: string; metadata?: any }) {
+    console.info('[api.initPaystackPayment] payload:', data);
     const res = await fetch(`${API_BASE_URL}/payment/init`, {
       method: 'POST',
       headers: getHeaders(),
@@ -222,9 +223,65 @@ export const api = {
   },
 
   async verifyPaystackPayment(reference: string) {
+    console.info('[api.verifyPaystackPayment] verifying reference:', reference);
     const res = await fetch(`${API_BASE_URL}/payment/verify/${reference}`, {
       headers: getHeaders(),
     });
     return handleResponse<{ success: boolean; data: { status: string; reference: string; amount?: number } }>(res);
   },
+
+  // ─── Wallet & Credits Ledger ────────────────────────────────────────────────
+  async getWallet() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/payment/wallet`, {
+        headers: getHeaders(),
+      });
+      return await handleResponse<{ success: boolean; data: { userId: string; email: string; role: string; credits: number } }>(res);
+    } catch (err: any) {
+      console.error('[api.getWallet] Failed to fetch live wallet credits:', err);
+      throw err;
+    }
+  },
+
+  async getTransactions() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/payment/transactions`, {
+        headers: getHeaders(),
+      });
+      return await handleResponse<{ success: boolean; data: any[] }>(res);
+    } catch (err: any) {
+      console.error('[api.getTransactions] Failed to fetch credit transactions:', err);
+      throw err;
+    }
+  },
+
+  // ─── Shot Retry & Diagnostics ───────────────────────────────────────────────
+  async retryShot(data: {
+    projectId: string;
+    shotId: string;
+    prompt?: string;
+    model?: string;
+    aspect_ratio?: string;
+  }) {
+    console.info(`[api.retryShot] Triggering retry for shot ${data.shotId} in project ${data.projectId}`);
+    try {
+      // Re-queue video generation with veo-3.1-lite
+      const res = await fetch(`${API_BASE_URL}/generation/video`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          projectId: data.projectId,
+          shotId: data.shotId,
+          prompt: data.prompt,
+          model: data.model || 'veo-3.1-lite',
+          aspect_ratio: data.aspect_ratio || '16:9',
+        }),
+      });
+      return await handleResponse<{ success: boolean; data: { taskId: string; status: string; estimatedCost: number } }>(res);
+    } catch (err: any) {
+      console.error(`[api.retryShot] Retry failed for shot ${data.shotId}:`, err);
+      throw err;
+    }
+  },
 };
+

@@ -40,6 +40,13 @@
   --radius-lg: 0;
   --radius-xl: 0.125rem;
   --radius-2xl: 0.25rem;
+
+  /* Studio Amber / Film Gold Accent Tokens */
+  --color-studio-amber:        #f59e0b;
+  --color-studio-gold:         #d97706;
+  --color-studio-amber-subtle: rgba(245, 158, 11, 0.08);
+  --color-studio-amber-glow:   rgba(245, 158, 11, 0.18);
+  --color-studio-amber-border: rgba(245, 158, 11, 0.32);
 }
 
 /* ─── Base ─────────────────────────────────────────────────────────────────── */
@@ -153,7 +160,7 @@ body {
 
   /* Shot thumbnail shimmer */
   .shot-thumb {
-    background: linear-gradient(135deg, #242426 0%, #393939 50%, #1a1a1b 100%);
+    background: linear-gradient(135deg, #18181a 0%, #29292c 50%, #121213 100%);
   }
 
   /* Active indicator stripe */
@@ -162,7 +169,8 @@ body {
     left: -0.75rem;
     height: 1rem;
     width: 2px;
-    background: #c0c0bb;
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
   }
 
   /* Grainy overlay for shot cards */
@@ -173,6 +181,47 @@ body {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
     opacity: 0.3;
     pointer-events: none;
+  }
+
+  /* Cinematic Filmstrip Perforation Track */
+  .filmstrip-sprockets {
+    background-image: radial-gradient(#2a2a2d 20%, transparent 25%),
+                      radial-gradient(#2a2a2d 20%, transparent 25%);
+    background-position: 0 0, 0 100%;
+    background-size: 16px 8px;
+    background-repeat: repeat-x;
+  }
+
+  /* Studio Amber Buttons & Badges */
+  .btn-amber {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.08);
+    padding: 0.5rem 0.875rem;
+    font-size: 0.75rem;
+    color: #f59e0b;
+    transition: all 0.2s ease;
+  }
+  .btn-amber:hover {
+    background: #f59e0b;
+    color: #000;
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.3);
+  }
+
+  .badge-amber {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.5rem;
+    font-size: 10px;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: rgba(245, 158, 11, 0.06);
+    color: #f59e0b;
   }
 }
 

@@ -5,19 +5,27 @@ import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Loader2, Aperture } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default function AuthCallbackPage() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Save token to localStorage for api.ts convenience
-        localStorage.setItem('primus_auth_token', session.access_token);
-      }
+    try {
+      const supabase = createClientComponentClient();
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          // Save token to localStorage for api.ts convenience
+          localStorage.setItem('primus_auth_token', session.access_token);
+        }
+        router.push('/');
+      }).catch(() => {
+        router.push('/');
+      });
+    } catch {
       router.push('/');
-    });
-  }, [router, supabase]);
+    }
+  }, [router]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#0b0b0c] text-[#f1f1ef]">
