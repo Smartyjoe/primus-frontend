@@ -97,9 +97,9 @@ export const api = {
     return handleResponse<{ success: boolean; data: any }>(res);
   },
 
-  async deleteProject(id: string) {
-    const res = await fetch(`${API_BASE_URL}/director/projects/${id}`, {
-      method: 'DELETE',
+  async triggerPipeline(projectId: string) {
+    const res = await fetch(`${API_BASE_URL}/director/projects/${projectId}/trigger`, {
+      method: 'POST',
       headers: getHeaders(),
     });
     return handleResponse<{ success: boolean; message: string }>(res);
@@ -159,7 +159,7 @@ export const api = {
     return handleResponse<{ success: boolean; data: any }>(res);
   },
 
-  async generateStoryboard(data: { script: string; visualStyle?: string; aiVideoModel?: string }) {
+  async generateStoryboard(data: { script: string; visualStyle?: string; aiVideoModel?: string; targetDurationSec?: number }) {
     const res = await fetch(`${API_BASE_URL}/ai/storyboard`, {
       method: 'POST',
       headers: getHeaders(),

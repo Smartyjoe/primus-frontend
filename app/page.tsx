@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  ArrowRight, Bell, Check, ChevronDown, Download,
+  AlertTriangle, ArrowRight, Bell, Check, ChevronDown, Download,
   Film, FolderOpen, Gauge, Layers3, MapPin, Menu, MoreHorizontal, Pause, Play,
   Plus, RefreshCw, Search, Settings2, Share2, SlidersHorizontal, UserRound,
   Wand2, X, Code, Aperture, Clock3, Loader2, Zap,
@@ -581,76 +581,48 @@ function ProjectsView({ projects, onSelectProject, onCreateNew, notify }: any) {
 // ─── Director Canvas View ─────────────────────────────────────────────────────
 
 function CanvasView({ project, selectedIndex, onSelectIndex, onRegenerateShot, onRefreshShots, go, notify }: any) {
-  // Demo fallback shots so the user can immediately experience the interactive timeline, failure diagnostics, and retries
-  const fallbackShots = [
-    {
-      id: 'shot-demo-1',
-      project_id: project?.id || 'demo',
-      shot_index: 0,
-      scene_number: 1,
-      shot_number: 1,
-      intent: 'Wide establishing aerial glide across rain-soaked neon skyline',
-      dialogue_text: 'The city never sleeps. It only reboots.',
-      flow_type: 'CUT' as const,
-      estimated_duration_sec: 8,
-      status: 'Completed' as const,
-    },
-    {
-      id: 'shot-demo-2',
-      project_id: project?.id || 'demo',
-      shot_index: 1,
-      scene_number: 1,
-      shot_number: 2,
-      intent: 'Slow pan left onto Ada Vale standing by chrome balcony railing',
-      dialogue_text: 'Two minutes until extraction.',
-      flow_type: 'EXTEND' as const,
-      estimated_duration_sec: 8,
-      status: 'Rendering' as const,
-      progress: 72,
-    },
-    {
-      id: 'shot-demo-3',
-      project_id: project?.id || 'demo',
-      shot_index: 2,
-      scene_number: 1,
-      shot_number: 3,
-      intent: 'Extreme close-up on biometric encrypted cyberdeck handshake',
-      dialogue_text: 'Key validated.',
-      flow_type: 'CUT' as const,
-      estimated_duration_sec: 8,
-      status: 'Failed' as const,
-      error_message: 'SnapGen GPU cluster node timeout during trajectory generation',
-      refunded: true,
-    },
-    {
-      id: 'shot-demo-4',
-      project_id: project?.id || 'demo',
-      shot_index: 3,
-      scene_number: 1,
-      shot_number: 4,
-      intent: 'High-speed motorcycle pursuit through neon-lit underground tunnel',
-      dialogue_text: 'Interceptors on our tail!',
-      flow_type: 'CUT' as const,
-      estimated_duration_sec: 8,
-      status: 'Queued' as const,
-    },
-  ];
-
-  const shotList = project?.shots && project.shots.length > 0
-    ? project.shots
-    : fallbackShots;
-
+  const shotList = project?.shots || [];
   const activeShot = shotList[selectedIndex] || shotList[0];
+
+  const handleTriggerPipeline = async () => {
+    if (!project?.id) {
+      notify('No active project selected.');
+      return;
+    }
+    try {
+      const res = await api.triggerPipeline(project.id);
+      if (res.success) {
+        notify('Production pipeline triggered! Generating scene 1 shots...');
+        if (onRefreshShots) onRefreshShots();
+      } else {
+        notify('Error: Failed to trigger pipeline');
+      }
+    } catch (err: any) {
+      notify(`Error: ${err.message}`);
+    }
+  };
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Stage 04 / Director Canvas"
-        title={<>{project?.title ?? 'Cyberpunk Heist'}<br /><span className="text-amber-400">in sequence.</span></>}
-        description="Direct every camera move, continuous extension, and prompt parameter. Live SSE status connected to Veo 3.1 engine."
-        action="Generate Storyboard"
-        onAction={() => notify('Storyboard synthesis queued')}
+        title={<>{project?.title ?? 'Production'}<br /><span className="text-amber-400">in sequence.</span></>}
+        description="Direct every camera move, continuous extension, and prompt parameter. Live pipeline connected to Veo 3.1 engine."
+        action="Trigger Pipeline"
+        onAction={handleTriggerPipeline}
       />
+
+      {shotList.length === 0 && (
+        <div className="border border-amber-500/30 bg-amber-500/10 p-6 text-center text-amber-300 text-xs font-mono space-y-3">
+          <p>No shots planned for this project yet.</p>
+          <button
+            onClick={() => go('story')}
+            className="btn-amber px-4 py-2 text-xs font-medium inline-block"
+          >
+            Go to Story & Generate Script / Storyboard
+          </button>
+        </div>
+      )}
 
       {/* ── Cinematic Filmstrip Timeline Sequence Track ── */}
       <ShotSequenceTimeline
@@ -867,9 +839,6 @@ function CharactersView({ projectId, notify }: any) {
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  const mockChars = ['Ada Vale', 'Milo Chen', 'The Broker', 'Background ensemble'];
-  const display = chars.length > 0 ? chars : mockChars.map((name) => ({ name }));
-
   return (
     <>
       <PageHeader
@@ -892,9 +861,13 @@ function CharactersView({ projectId, notify }: any) {
         <div className="flex h-40 items-center justify-center text-xs text-[#555552]">
           <Loader2 className="mr-2 size-4 animate-spin" /> Loading characters…
         </div>
+      ) : chars.length === 0 ? (
+        <div className="border border-white/10 bg-[#0c0c0e] p-8 text-center text-zinc-400 text-xs">
+          No characters defined yet. Generate a script/storyboard to extract character DNA.
+        </div>
       ) : (
         <div className="grid gap-px border border-white/[0.09] bg-white/[0.09] sm:grid-cols-2 lg:grid-cols-4">
-          {display.map((char: any, i: number) => (
+          {chars.map((char: any, i: number) => (
             <button
               key={char.id ?? char.name ?? i}
               onClick={() => notify(`${char.name} opened`)}
@@ -905,7 +878,7 @@ function CharactersView({ projectId, notify }: any) {
               />
               <div className="p-4">
                 <p className="text-sm text-[#e5e5e1]">{char.name}</p>
-                <p className="mt-2 text-[10px] text-[#6f6f6b]">{i + 2} references · Updated today</p>
+                <p className="mt-2 text-[10px] text-[#6f6f6b]">References defined · Updated today</p>
               </div>
             </button>
           ))}
@@ -918,7 +891,16 @@ function CharactersView({ projectId, notify }: any) {
 // ─── Locations View ───────────────────────────────────────────────────────────
 
 function LocationsView({ projectId, notify }: any) {
-  const mockLocs = ['Neon city / night', 'The old orchard', 'Subway platform 09', 'Rain room'];
+  const [locs, setLocs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!projectId) { setLoading(false); return; }
+    api.getProjectDetails(projectId)
+      .then((r) => { if (r.success) setLocs(r.data?.locations ?? []); })
+      .catch((e) => console.error('[locations] load error:', e))
+      .finally(() => setLoading(false));
+  }, [projectId]);
 
   return (
     <>
@@ -938,21 +920,31 @@ function LocationsView({ projectId, notify }: any) {
         />
       </div>
 
-      <div className="grid gap-px border border-white/[0.09] bg-white/[0.09] sm:grid-cols-2 lg:grid-cols-4">
-        {mockLocs.map((loc, i) => (
-          <button
-            key={loc}
-            onClick={() => notify(`${loc} opened`)}
-            className="bg-[#0b0b0c] text-left hover:bg-[#151516] transition-colors"
-          >
-            <div className={`h-44 grayscale ${['bg-[#484e4e]','bg-[#555755]','bg-[#484f4d]','bg-[#605751]'][i]}`} />
-            <div className="p-4">
-              <p className="text-sm text-[#e5e5e1]">{loc}</p>
-              <p className="mt-2 text-[10px] text-[#6f6f6b]">Ambient phrases defined · Updated today</p>
-            </div>
-          </button>
-        ))}
-      </div>
+      {loading ? (
+        <div className="flex h-40 items-center justify-center text-xs text-[#555552]">
+          <Loader2 className="mr-2 size-4 animate-spin" /> Loading locations…
+        </div>
+      ) : locs.length === 0 ? (
+        <div className="border border-white/10 bg-[#0c0c0e] p-8 text-center text-zinc-400 text-xs">
+          No locations defined yet. Generate a script/storyboard to extract location references.
+        </div>
+      ) : (
+        <div className="grid gap-px border border-white/[0.09] bg-white/[0.09] sm:grid-cols-2 lg:grid-cols-4">
+          {locs.map((loc: any, i: number) => (
+            <button
+              key={loc.id ?? loc.name ?? i}
+              onClick={() => notify(`${loc.name} opened`)}
+              className="bg-[#0b0b0c] text-left hover:bg-[#151516] transition-colors"
+            >
+              <div className="h-44 grayscale bg-[#484e4e]" />
+              <div className="p-4">
+                <p className="text-sm text-[#e5e5e1]">{loc.name}</p>
+                <p className="mt-2 text-[10px] text-[#6f6f6b]">Ambient phrases defined · Updated today</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -1055,17 +1047,25 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
   const [estimatedMinutes, setEstimatedMinutes] = useState('5');
   const [videoStyle, setVideoStyle]     = useState('realistic');
   const [aspectRatio, setAspectRatio]   = useState('16:9');
+  
+  const [step, setStep]               = useState<'form' | 'review'>('form');
+  const [projectId, setProjectId]     = useState<string | null>(null);
+  const [scriptData, setScriptData]   = useState<any>(null);
+  const [editableScript, setEditableScript] = useState('');
+  const [adjustmentPrompt, setAdjustmentPrompt] = useState('');
   const [loading, setLoading]         = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
-  const handleCreate = async () => {
+  const handleGenerateScript = async () => {
     if (!user) {
       onRequireLogin();
       return;
     }
 
     setLoading(true);
+    setLoadingMessage('Creating project & generating script & story bible...');
     try {
-      const res = await api.createProject({
+      const projRes = await api.createProject({
         title,
         premise,
         visual_style: videoStyle,
@@ -1073,20 +1073,209 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         estimated_duration: parseInt(estimatedMinutes) * 60,
         ai_video_model: 'veo-3.1-lite',
       });
-      if (res.success && res.data) {
-        onProjectCreated(res.data.id);
-        notify('Project created!');
-        go('canvas');
-      } else {
-        throw new Error((res as any).error || 'Unknown error');
+      if (!projRes.success || !projRes.data) {
+        throw new Error('Failed to create project');
       }
+      const pId = projRes.data.id;
+      setProjectId(pId);
+      onProjectCreated(pId);
+
+      const scriptRes = await api.generateScript({
+        premise,
+        useCase: premise,
+        duration: parseInt(estimatedMinutes) * 60,
+        visualStyle: videoStyle,
+      });
+      if (!scriptRes.success || !scriptRes.data) {
+        throw new Error('Failed to generate script');
+      }
+      setScriptData(scriptRes.data);
+      setEditableScript(scriptRes.data.script);
+      setStep('review');
+      notify('Script generated successfully!');
     } catch (err: any) {
-      console.error('[story] create error:', err.message);
+      console.error('[story] error:', err);
       notify(`Error: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleAdjustScript = async () => {
+    if (!adjustmentPrompt.trim()) return;
+    setLoading(true);
+    setLoadingMessage('Adjusting script with AI director...');
+    try {
+      const res = await api.generateScript({
+        premise: `${premise}. User requested adjustment: ${adjustmentPrompt}`,
+        useCase: premise,
+        duration: parseInt(estimatedMinutes) * 60,
+        visualStyle: videoStyle,
+      });
+      if (res.success && res.data) {
+        setScriptData(res.data);
+        setEditableScript(res.data.script);
+        setAdjustmentPrompt('');
+        notify('Script updated based on your feedback.');
+      }
+    } catch (err: any) {
+      notify(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApproveAndGenerateStoryboard = async () => {
+    if (!projectId) return;
+    setLoading(true);
+    setLoadingMessage('Saving script, extracting characters/locations, and planning storyboard shots scene by scene...');
+    try {
+      await api.updateProject(projectId, {
+        script: editableScript,
+        status: 'ScriptApproved',
+      });
+
+      if (scriptData?.characters && Array.isArray(scriptData.characters)) {
+        for (const char of scriptData.characters) {
+          await api.registerCharacterDna(projectId, {
+            name: char.name,
+            description: char.description,
+            dna_prompt: char.dna_prompt || char.description,
+            face_reference_url: char.reference_url,
+          });
+        }
+      }
+
+      if (scriptData?.locations && Array.isArray(scriptData.locations)) {
+        for (const loc of scriptData.locations) {
+          await api.registerLocationDna(projectId, {
+            name: loc.name,
+            description: loc.description,
+            dna_prompt: loc.dna_prompt || loc.description,
+            reference_url: loc.reference_url,
+          });
+        }
+      }
+
+      const sbRes = await api.generateStoryboard({
+        script: editableScript,
+        visualStyle: videoStyle,
+        aiVideoModel: 'veo-3.1-lite',
+        targetDurationSec: parseInt(estimatedMinutes) * 60,
+      });
+
+      if (!sbRes.success || !sbRes.data || !sbRes.data.shots) {
+        throw new Error('Failed to generate storyboard shots');
+      }
+
+      await api.addShots(projectId, sbRes.data.shots);
+
+      notify('Storyboard planned scene by scene! Entering Director Canvas...');
+      go('canvas');
+    } catch (err: any) {
+      console.error('[story] approval error:', err);
+      notify(`Error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (step === 'review') {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto pb-12">
+        <PageHeader
+          eyebrow="Stage 02 / Script Review & Approval"
+          title="Review, edit, or adjust your film script."
+          description="Read the generated script, make manual edits, re-prompt for specific adjustments, or approve to start shot-by-shot storyboard planning."
+        />
+
+        {loading && (
+          <div className="flex items-center gap-3 p-4 border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs font-mono">
+            <Loader2 className="size-4 animate-spin" />
+            {loadingMessage}
+          </div>
+        )}
+
+        {scriptData?.reasoning && (
+          <div className="border border-white/10 bg-[#0c0c0e] p-5">
+            <p className="text-xs uppercase tracking-widest text-amber-400 font-mono mb-2">🧠 AI Story Planner & Structure</p>
+            <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{scriptData.reasoning}</p>
+          </div>
+        )}
+
+        <div className="border border-white/15 bg-[#0c0c0e] p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-mono text-amber-400 uppercase tracking-widest">Full Production Script (Editable)</label>
+            <span className="text-[10px] text-zinc-500 font-mono">Manual edits persist on approval</span>
+          </div>
+          <textarea
+            value={editableScript}
+            onChange={(e) => setEditableScript(e.target.value)}
+            className="w-full h-96 bg-[#060607] border border-white/10 p-4 text-xs font-mono text-zinc-200 leading-relaxed outline-none focus:border-amber-400 transition-colors"
+          />
+        </div>
+
+        <div className="border border-white/10 bg-[#0c0c0e] p-5 space-y-3">
+          <label className="text-xs font-mono text-zinc-400 uppercase tracking-widest">Want to adjust pacing or stakes? Re-prompt:</label>
+          <div className="flex gap-3">
+            <input
+              value={adjustmentPrompt}
+              onChange={(e) => setAdjustmentPrompt(e.target.value)}
+              placeholder="e.g., Make the climax more intense, add a twist..."
+              className="flex-1 bg-transparent border border-white/15 px-4 py-2.5 text-xs text-white outline-none focus:border-amber-400"
+            />
+            <button
+              onClick={handleAdjustScript}
+              disabled={loading || !adjustmentPrompt.trim()}
+              className="btn-amber px-4 py-2.5 text-xs font-medium disabled:opacity-50"
+            >
+              Adjust Script
+            </button>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="border border-white/10 bg-[#0c0c0e] p-5">
+            <p className="text-xs uppercase tracking-widest text-amber-400 font-mono mb-3">Extracted Characters ({scriptData?.characters?.length || 0})</p>
+            <div className="space-y-2">
+              {scriptData?.characters?.map((c: any, i: number) => (
+                <div key={i} className="text-xs border-b border-white/5 pb-2">
+                  <span className="text-white font-medium">{c.name}</span>: <span className="text-zinc-400">{c.description}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="border border-white/10 bg-[#0c0c0e] p-5">
+            <p className="text-xs uppercase tracking-widest text-amber-400 font-mono mb-3">Extracted Locations ({scriptData?.locations?.length || 0})</p>
+            <div className="space-y-2">
+              {scriptData?.locations?.map((l: any, i: number) => (
+                <div key={i} className="text-xs border-b border-white/5 pb-2">
+                  <span className="text-white font-medium">{l.name}</span>: <span className="text-zinc-400">{l.description}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-4 pt-4">
+          <button
+            onClick={() => setStep('form')}
+            className="border border-white/20 px-5 py-3 text-xs text-zinc-300 hover:border-white/50"
+          >
+            Back to Pitch
+          </button>
+          <button
+            onClick={handleApproveAndGenerateStoryboard}
+            disabled={loading}
+            className="btn-amber flex items-center gap-2 px-6 py-3 text-xs font-medium disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            Approve Script & Plan Storyboard (Shots)
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -1097,6 +1286,13 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         action="Save Story Seed"
         onAction={() => notify('Story seed draft saved')}
       />
+
+      {loading && (
+        <div className="flex items-center gap-3 p-4 mb-4 border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs font-mono">
+          <Loader2 className="size-4 animate-spin" />
+          {loadingMessage}
+        </div>
+      )}
 
       <div className="max-w-2xl border border-white/[0.08] bg-[#0c0c0e] p-6 md:p-8">
         <Field label="Working title">
@@ -1170,12 +1366,12 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         </Field>
 
         <button
-          onClick={handleCreate}
+          onClick={handleGenerateScript}
           disabled={loading}
           className="mt-6 flex items-center gap-2 btn-amber w-full justify-center py-3 text-xs font-medium disabled:opacity-50 transition-colors"
         >
           {loading ? <Loader2 className="size-4 animate-spin" /> : <Wand2 className="size-4" />}
-          {loading ? 'Synthesizing Story Bible…' : 'Build Story Bible & Generate Shots'}
+          {loading ? loadingMessage : 'Build Story Bible & Generate Script'}
           {!loading && <ArrowRight className="size-3.5" />}
         </button>
       </div>
