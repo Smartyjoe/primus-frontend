@@ -11,7 +11,9 @@ import { api } from '@/lib/api';
 import { PaystackModal } from '@/components/modals/PaystackModal';
 import { ShotRegenerationDrawer } from '@/components/modals/ShotRegenerationDrawer';
 import { PublishDrawer } from '@/components/modals/PublishDrawer';
+import { LoginModal } from '@/components/modals/LoginModal';
 import { DeveloperConsoleView } from '@/components/views/DeveloperConsoleView';
+import { useAuth } from '@/components/AuthProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +50,7 @@ const SHOT_THUMBS = [
 // ─── Root Page ────────────────────────────────────────────────────────────────
 
 export default function Page() {
+  const { user, signOut } = useAuth();
   const [screen, setScreen]               = useState<Screen>('projects');
   const [mobileNav, setMobileNav]         = useState(false);
   const [toast, setToast]                 = useState('');
@@ -61,6 +64,8 @@ export default function Page() {
   const [paystackOpen,   setPaystackOpen]   = useState(false);
   const [regenShot,      setRegenShot]      = useState<any | null>(null);
   const [publishProject, setPublishProject] = useState<any | null>(null);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginMessage,   setLoginMessage]   = useState('');
 
   const notify = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
   const go = (next: Screen)   => { setScreen(next); setMobileNav(false); };
@@ -135,9 +140,30 @@ export default function Page() {
           </button>
 
           <Bell className="hidden size-4 md:block cursor-pointer hover:text-white transition-colors" />
-          <button className="grid size-7 place-items-center border border-white/20 text-[10px] hover:bg-white hover:text-black transition-all">
-            JD
-          </button>
+
+          {user ? (
+            <div className="flex items-center gap-2">
+              <span className="grid size-7 place-items-center bg-white/10 text-white text-[10px] font-mono rounded-full">
+                {user.email ? user.email.substring(0, 2).toUpperCase() : 'U'}
+              </span>
+              <button
+                onClick={() => signOut()}
+                className="text-[11px] text-[#8a8a86] hover:text-white transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setLoginMessage('Sign in with Google to sync your projects and queue AI renders.');
+                setLoginModalOpen(true);
+              }}
+              className="border border-white/30 bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white hover:text-black transition-all"
+            >
+              Sign In
+            </button>
+          )}
         </div>
       </header>
 
@@ -211,6 +237,11 @@ export default function Page() {
 
           {screen === 'story' && (
             <StoryView
+              user={user}
+              onRequireLogin={() => {
+                setLoginMessage('Sign in with Google to create and save your film project.');
+                setLoginModalOpen(true);
+              }}
               go={go}
               notify={notify}
               onProjectCreated={(id: string) => setActiveProjectId(id)}
@@ -253,6 +284,12 @@ export default function Page() {
         isOpen={!!publishProject}
         project={publishProject}
         onClose={() => setPublishProject(null)}
+      />
+
+      <LoginModal
+        isOpen={loginModalOpen}
+        onClose={() => setLoginModalOpen(false)}
+        message={loginMessage}
       />
 
       {/* Mobile nav overlay */}
@@ -871,12 +908,17 @@ function SettingsView({ notify }: any) {
 
 // ─── Story / New Project View ─────────────────────────────────────────────────
 
-function StoryView({ go, notify, onProjectCreated }: any) {
+function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) {
   const [title,   setTitle]   = useState('Cyberpunk Heist');
   const [premise, setPremise] = useState('A courier steals a memory from the city that built her.');
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
+    if (!user) {
+      onRequireLogin();
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await api.createProject({ title, premise });
