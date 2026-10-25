@@ -7,7 +7,22 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3
 
 // Default auth header for local dev (can be overridden with real JWT token)
 function getHeaders(customHeaders: Record<string, string> = {}) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('primus_auth_token') : null;
+  let token = typeof window !== 'undefined' ? localStorage.getItem('primus_auth_token') : null;
+  
+  if (!token && typeof window !== 'undefined') {
+    // Automatically find Supabase session token in localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+        try {
+          const item = JSON.parse(localStorage.getItem(key)!);
+          token = item?.access_token;
+          if (token) break;
+        } catch {}
+      }
+    }
+  }
+
   return {
     'Content-Type': 'application/json',
     Authorization: token ? `Bearer ${token}` : 'Bearer dev-user-123',
