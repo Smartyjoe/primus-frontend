@@ -48,7 +48,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    const handleUnauthorized = async () => {
+      setSession(null);
+      setUser(null);
+      try {
+        await supabase.auth.signOut();
+      } catch {}
+    };
+    window.addEventListener('primus:unauthorized', handleUnauthorized as EventListener);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('primus:unauthorized', handleUnauthorized as EventListener);
+    };
   }, [supabase]);
 
   const signIn = async () => {

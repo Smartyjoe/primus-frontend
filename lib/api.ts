@@ -32,6 +32,19 @@ function getHeaders(customHeaders: Record<string, string> = {}) {
 
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    if (response.status === 401) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('primus_auth_token');
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            localStorage.removeItem(key);
+          }
+        }
+        console.warn('[API] Session expired or unauthorized (401). Dispatching unauthorized event.');
+        window.dispatchEvent(new CustomEvent('primus:unauthorized'));
+      }
+    }
     let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
     try {
       const errorJson = await response.json();
