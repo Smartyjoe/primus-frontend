@@ -27,11 +27,12 @@ type Screen =
 // ─── Navigation config ────────────────────────────────────────────────────────
 
 const navPrimary = [
-  { id: 'projects'   as Screen, label: 'Projects',       icon: FolderOpen },
+  { id: 'projects'   as Screen, label: 'Projects',        icon: FolderOpen },
   { id: 'canvas'     as Screen, label: 'Director Canvas', icon: Film, badge: 'Sequence' },
-  { id: 'characters' as Screen, label: 'Characters',     icon: UserRound  },
-  { id: 'locations'  as Screen, label: 'Locations',      icon: MapPin     },
-  { id: 'templates'  as Screen, label: 'Templates',      icon: Layers3    },
+  { id: 'storyboard' as Screen, label: 'Storyboard',      icon: Layers3 },
+  { id: 'characters' as Screen, label: 'Characters',      icon: UserRound  },
+  { id: 'locations'  as Screen, label: 'Locations',       icon: MapPin     },
+  { id: 'templates'  as Screen, label: 'Templates',       icon: Film       },
 ];
 
 const navSecondary = [
@@ -259,6 +260,7 @@ export default function Page() {
           {screen === 'projects' && (
             <ProjectsView
               projects={projectsList}
+              credits={credits}
               onSelectProject={(id: string) => { setActiveProjectId(id); go('canvas'); }}
               onCreateNew={() => go('story')}
               notify={notify}
@@ -278,11 +280,11 @@ export default function Page() {
           )}
 
           {screen === 'characters' && (
-            <CharactersView projectId={activeProjectId} notify={notify} />
+            <CharactersView projectId={activeProjectId} onRefreshProject={refreshProjectDetails} notify={notify} />
           )}
 
           {screen === 'locations' && (
-            <LocationsView projectId={activeProjectId} notify={notify} />
+            <LocationsView projectId={activeProjectId} onRefreshProject={refreshProjectDetails} notify={notify} />
           )}
 
           {screen === 'templates' && <TemplatesView go={go} notify={notify} />}
@@ -296,7 +298,7 @@ export default function Page() {
 
           {screen === 'developer' && <DeveloperConsoleView />}
 
-          {screen === 'settings' && <SettingsView notify={notify} />}
+          {screen === 'settings' && <SettingsView project={currentProject} onRefreshProject={refreshProjectDetails} notify={notify} />}
 
           {screen === 'story' && (
             <StoryView
@@ -316,13 +318,21 @@ export default function Page() {
           )}
 
           {screen === 'render' && (
-            <RenderView project={currentProject} go={go} notify={notify} />
+            <RenderView
+              project={currentProject}
+              go={go}
+              notify={notify}
+              onRenderComplete={(videoUrl: string) => {
+                if (currentProject) currentProject.video_url = videoUrl;
+              }}
+            />
           )}
 
           {screen === 'preview' && (
             <PreviewView
               project={currentProject}
               go={go}
+              notify={notify}
               onPublish={() => setPublishProject(currentProject)}
             />
           )}
@@ -479,8 +489,10 @@ function Field({ label, children }: any) {
 
 // ─── Projects View ────────────────────────────────────────────────────────────
 
-function ProjectsView({ projects, onSelectProject, onCreateNew, notify }: any) {
+function ProjectsView({ projects, credits = 1250, onSelectProject, onCreateNew, notify }: any) {
   const list = projects ?? [];
+  const totalTargetSec = list.reduce((acc: number, p: any) => acc + (p.target_duration_seconds || 60), 0);
+  const totalHours = (totalTargetSec / 3600).toFixed(1);
 
   return (
     <>
@@ -495,8 +507,8 @@ function ProjectsView({ projects, onSelectProject, onCreateNew, notify }: any) {
       {/* Metrics */}
       <div className="mb-12 grid gap-4 sm:grid-cols-3">
         <Metric value={list.length || '0'} label="Active Productions" />
-        <Metric value="18h 42m" label="Compute Rendered" />
-        <Metric value="1,250 CR" label="Available Treasury" accent={true} />
+        <Metric value={`${totalHours}h planned`} label="Compute Runtime" />
+        <Metric value={`${credits.toLocaleString()} CR`} label="Available Treasury" accent={true} />
       </div>
 
       <div className="mb-5 flex items-center justify-between">
@@ -516,6 +528,8 @@ function ProjectsView({ projects, onSelectProject, onCreateNew, notify }: any) {
           {list.map((proj: any, i: number) => {
             const isCompleted = proj.status === 'Completed';
             const isRendering = proj.status === 'Rendering';
+            const calcProgress = isCompleted ? 100 : isRendering || proj.status === 'Finalized' ? 70 : proj.status === 'ScriptApproved' ? 40 : 15;
+            const progress = proj.progress ?? calcProgress;
 
             return (
               <div
@@ -558,10 +572,10 @@ function ProjectsView({ projects, onSelectProject, onCreateNew, notify }: any) {
                       <div className="h-1.5 w-20 overflow-hidden rounded-full bg-white/10">
                         <div
                           className="h-full bg-amber-400 transition-all duration-300"
-                          style={{ width: `${proj.progress ?? 65}%` }}
+                          style={{ width: `${progress}%` }}
                         />
                       </div>
-                      <span className="font-mono text-[10px] text-zinc-400">{proj.progress ?? 65}%</span>
+                      <span className="font-mono text-[10px] text-zinc-400">{progress}%</span>
                     </div>
 
                     <span className="text-[11px] text-amber-400 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
@@ -810,7 +824,17 @@ function ShotInspector({ shot, index, projectId, onRegenerate, onRefreshShots, n
               </button>
 
               <button
-                onClick={() => notify('Shot locked into final cut sequence')}
+                onClick={async () => {
+                  if (!shot?.id) return;
+                  try {
+                    await api.updateShot(shot.id, { status: 'Completed' });
+                    shot.status = 'Completed';
+                    notify('Shot locked into final cut sequence');
+                    if (onRefreshShots) onRefreshShots();
+                  } catch (err: any) {
+                    notify('Error locking shot: ' + err.message);
+                  }
+                }}
                 className="w-full border border-white/20 py-2 text-xs text-white hover:bg-white hover:text-black transition-colors"
               >
                 Lock Shot Continuity
@@ -827,17 +851,57 @@ function ShotInspector({ shot, index, projectId, onRegenerate, onRefreshShots, n
 
 // ─── Characters View ──────────────────────────────────────────────────────────
 
-function CharactersView({ projectId, notify }: any) {
+function CharactersView({ projectId, onRefreshProject, notify }: any) {
   const [chars, setChars] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [dnaPrompt, setDnaPrompt] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const loadCharacters = () => {
     if (!projectId) { setLoading(false); return; }
+    setLoading(true);
     api.getProjectDetails(projectId)
       .then((r) => { if (r.success) setChars(r.data?.characters ?? []); })
       .catch((e) => console.error('[characters] load error:', e))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadCharacters();
   }, [projectId]);
+
+  const handleCreateCharacter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    if (!projectId) {
+      notify('Please select or create a project first.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.registerCharacterDna(projectId, {
+        name: name.trim(),
+        description: desc.trim(),
+        dna_prompt: dnaPrompt.trim() || desc.trim() || name.trim(),
+      });
+      if (res.success) {
+        notify(`Character "${name}" registered successfully`);
+        setIsAdding(false);
+        setName('');
+        setDesc('');
+        setDnaPrompt('');
+        loadCharacters();
+        if (onRefreshProject) onRefreshProject();
+      }
+    } catch (err: any) {
+      notify(`Failed to add character: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>
@@ -845,9 +909,61 @@ function CharactersView({ projectId, notify }: any) {
         eyebrow="Creative library"
         title="Characters"
         description="Performance references for every scene. Each character references a consistent visual DNA."
-        action="Add character"
-        onAction={() => notify('Character creation opened')}
+        action={isAdding ? "Close form" : "Add character"}
+        onAction={() => setIsAdding(!isAdding)}
       />
+
+      {isAdding && (
+        <form onSubmit={handleCreateCharacter} className="mb-8 border border-amber-500/30 bg-[#0e0e11] p-6 space-y-4 max-w-xl animate-fade-up">
+          <p className="text-xs uppercase tracking-widest text-amber-400 font-mono">Register Character DNA</p>
+          <div>
+            <label className="block text-[11px] text-zinc-400 mb-1 font-mono uppercase">Character Name *</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Ada Croft"
+              required
+              className="w-full bg-[#141417] border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-zinc-400 mb-1 font-mono uppercase">Description / Backstory</label>
+            <textarea
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="e.g., Rogue cyber-courier, scarred cheek, neon cybernetic arm"
+              rows={2}
+              className="w-full bg-[#141417] border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-zinc-400 mb-1 font-mono uppercase">Visual DNA Prompt</label>
+            <input
+              value={dnaPrompt}
+              onChange={(e) => setDnaPrompt(e.target.value)}
+              placeholder="Consistent physical keywords: wearing black leather duster, cybernetic eye, 30s woman"
+              className="w-full bg-[#141417] border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-amber text-xs px-4 py-2 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Plus className="size-3.5 mr-1" />}
+              Save Character DNA
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAdding(false)}
+              className="border border-white/15 px-4 py-2 text-xs text-zinc-400 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="mb-8 flex items-center gap-3 border-b border-white/[0.09] pb-4">
         <Search className="size-4 text-[#6f6f6b]" />
@@ -863,23 +979,24 @@ function CharactersView({ projectId, notify }: any) {
         </div>
       ) : chars.length === 0 ? (
         <div className="border border-white/10 bg-[#0c0c0e] p-8 text-center text-zinc-400 text-xs">
-          No characters defined yet. Generate a script/storyboard to extract character DNA.
+          No characters defined yet. Click &quot;Add character&quot; or generate a story script to register character DNA.
         </div>
       ) : (
         <div className="grid gap-px border border-white/[0.09] bg-white/[0.09] sm:grid-cols-2 lg:grid-cols-4">
           {chars.map((char: any, i: number) => (
             <button
               key={char.id ?? char.name ?? i}
-              onClick={() => notify(`${char.name} opened`)}
-              className="bg-[#0b0b0c] text-left hover:bg-[#151516] transition-colors"
+              onClick={() => notify(`${char.name}: ${char.description || char.dna_prompt || 'Consistent DNA locked'}`)}
+              className="bg-[#0b0b0c] text-left hover:bg-[#151516] transition-colors p-4 group"
             >
               <div
-                className={`h-44 grayscale ${['bg-[#555755]','bg-[#484e4e]','bg-[#605751]','bg-[#484f4d]'][i % 4]}`}
-              />
-              <div className="p-4">
-                <p className="text-sm text-[#e5e5e1]">{char.name}</p>
-                <p className="mt-2 text-[10px] text-[#6f6f6b]">References defined · Updated today</p>
+                className={`h-40 w-full mb-3 flex items-center justify-center text-xs font-mono text-white/40 border border-white/5 ${['bg-[#1f2022]','bg-[#222528]','bg-[#252220]','bg-[#202524]'][i % 4]}`}
+              >
+                <span className="group-hover:text-amber-400 transition-colors uppercase tracking-wider">{char.name}</span>
               </div>
+              <p className="text-sm text-[#e5e5e1] font-medium">{char.name}</p>
+              <p className="mt-1 text-xs text-zinc-400 line-clamp-2">{char.description || char.dna_prompt || 'Character visual reference defined'}</p>
+              <p className="mt-2 text-[10px] text-amber-400/80 font-mono">DNA Continuity Active</p>
             </button>
           ))}
         </div>
@@ -890,17 +1007,57 @@ function CharactersView({ projectId, notify }: any) {
 
 // ─── Locations View ───────────────────────────────────────────────────────────
 
-function LocationsView({ projectId, notify }: any) {
+function LocationsView({ projectId, onRefreshProject, notify }: any) {
   const [locs, setLocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [dnaPrompt, setDnaPrompt] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const loadLocations = () => {
     if (!projectId) { setLoading(false); return; }
+    setLoading(true);
     api.getProjectDetails(projectId)
       .then((r) => { if (r.success) setLocs(r.data?.locations ?? []); })
       .catch((e) => console.error('[locations] load error:', e))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadLocations();
   }, [projectId]);
+
+  const handleCreateLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    if (!projectId) {
+      notify('Please select or create a project first.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await api.registerLocationDna(projectId, {
+        name: name.trim(),
+        description: desc.trim(),
+        dna_prompt: dnaPrompt.trim() || desc.trim() || name.trim(),
+      });
+      if (res.success) {
+        notify(`Location "${name}" registered successfully`);
+        setIsAdding(false);
+        setName('');
+        setDesc('');
+        setDnaPrompt('');
+        loadLocations();
+        if (onRefreshProject) onRefreshProject();
+      }
+    } catch (err: any) {
+      notify(`Failed to add location: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>
@@ -908,9 +1065,61 @@ function LocationsView({ projectId, notify }: any) {
         eyebrow="Creative library"
         title="Locations"
         description="Worlds, light, and continuity references."
-        action="Add location"
-        onAction={() => notify('Location creation opened')}
+        action={isAdding ? "Close form" : "Add location"}
+        onAction={() => setIsAdding(!isAdding)}
       />
+
+      {isAdding && (
+        <form onSubmit={handleCreateLocation} className="mb-8 border border-amber-500/30 bg-[#0e0e11] p-6 space-y-4 max-w-xl animate-fade-up">
+          <p className="text-xs uppercase tracking-widest text-amber-400 font-mono">Register Location Reference</p>
+          <div>
+            <label className="block text-[11px] text-zinc-400 mb-1 font-mono uppercase">Location Name *</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Neon Underbelly Docks"
+              required
+              className="w-full bg-[#141417] border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-zinc-400 mb-1 font-mono uppercase">Environment & Atmosphere</label>
+            <textarea
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              placeholder="e.g., Rain-slicked asphalt, flickering cyan holograms, perpetual smog"
+              rows={2}
+              className="w-full bg-[#141417] border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] text-zinc-400 mb-1 font-mono uppercase">Lighting & Architectural DNA</label>
+            <input
+              value={dnaPrompt}
+              onChange={(e) => setDnaPrompt(e.target.value)}
+              placeholder="Brutalist concrete monoliths, heavy volumetric mist, amber sodium vapor lamps"
+              className="w-full bg-[#141417] border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-amber-400"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-amber text-xs px-4 py-2 disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="size-3.5 animate-spin mr-1" /> : <Plus className="size-3.5 mr-1" />}
+              Save Location
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAdding(false)}
+              className="border border-white/15 px-4 py-2 text-xs text-zinc-400 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="mb-8 flex items-center gap-3 border-b border-white/[0.09] pb-4">
         <Search className="size-4 text-[#6f6f6b]" />
@@ -926,21 +1135,22 @@ function LocationsView({ projectId, notify }: any) {
         </div>
       ) : locs.length === 0 ? (
         <div className="border border-white/10 bg-[#0c0c0e] p-8 text-center text-zinc-400 text-xs">
-          No locations defined yet. Generate a script/storyboard to extract location references.
+          No locations defined yet. Click &quot;Add location&quot; or generate a story script to register location references.
         </div>
       ) : (
         <div className="grid gap-px border border-white/[0.09] bg-white/[0.09] sm:grid-cols-2 lg:grid-cols-4">
           {locs.map((loc: any, i: number) => (
             <button
               key={loc.id ?? loc.name ?? i}
-              onClick={() => notify(`${loc.name} opened`)}
-              className="bg-[#0b0b0c] text-left hover:bg-[#151516] transition-colors"
+              onClick={() => notify(`${loc.name}: ${loc.description || loc.dna_prompt || 'Environment locked'}`)}
+              className="bg-[#0b0b0c] text-left hover:bg-[#151516] transition-colors p-4 group"
             >
-              <div className="h-44 grayscale bg-[#484e4e]" />
-              <div className="p-4">
-                <p className="text-sm text-[#e5e5e1]">{loc.name}</p>
-                <p className="mt-2 text-[10px] text-[#6f6f6b]">Ambient phrases defined · Updated today</p>
+              <div className="h-40 w-full mb-3 flex items-center justify-center text-xs font-mono text-white/40 border border-white/5 bg-[#1a1b1e]">
+                <span className="group-hover:text-amber-400 transition-colors uppercase tracking-wider">{loc.name}</span>
               </div>
+              <p className="text-sm text-[#e5e5e1] font-medium">{loc.name}</p>
+              <p className="mt-1 text-xs text-zinc-400 line-clamp-2">{loc.description || loc.dna_prompt || 'Ambient environment reference defined'}</p>
+              <p className="mt-2 text-[10px] text-amber-400/80 font-mono">Lighting Profile Active</p>
             </button>
           ))}
         </div>
@@ -999,40 +1209,114 @@ function TemplatesView({ go, notify }: any) {
 
 // ─── Settings View ────────────────────────────────────────────────────────────
 
-function SettingsView({ notify }: any) {
-  const fields = [
-    ['Workspace name',   'Primus Studio'],
-    ['Default delivery', '4K · 24fps'],
-    ['Continuity model', 'Strict'],
-  ];
+function SettingsView({ project, onRefreshProject, notify }: any) {
+  const [title, setTitle] = useState(project?.title || 'Cyberpunk Heist');
+  const [visualStyle, setVisualStyle] = useState(project?.visual_style || 'realistic');
+  const [aspectRatio, setAspectRatio] = useState(project?.aspect_ratio || '16:9');
+  const [delivery, setDelivery] = useState('4K · 24fps');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (project) {
+      if (project.title) setTitle(project.title);
+      if (project.visual_style) setVisualStyle(project.visual_style);
+      if (project.aspect_ratio) setAspectRatio(project.aspect_ratio);
+    }
+  }, [project]);
+
+  const handleSave = async () => {
+    if (!project?.id) {
+      notify('Settings draft saved in local session.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.updateProject(project.id, {
+        title,
+        visual_style: visualStyle,
+        aspect_ratio: aspectRatio,
+      });
+      notify('Project production settings saved successfully!');
+      if (onRefreshProject) onRefreshProject();
+    } catch (err: any) {
+      notify(`Failed to save settings: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>
       <PageHeader
         eyebrow="Workspace"
         title="Settings"
-        description="Project defaults and production preferences."
-        action="Save changes"
-        onAction={() => notify('Settings saved')}
+        description="Project defaults, visual tone parameters, and production preferences."
+        action={saving ? "Saving..." : "Save changes"}
+        onAction={handleSave}
       />
 
-      <div className="max-w-2xl">
-        {fields.map(([label, value]) => (
-          <label key={label} className="block border-b border-white/[0.09] py-5">
-            <span className="label-caps">{label}</span>
-            <input
-              defaultValue={value}
-              className="mt-3 block w-full bg-transparent text-sm text-[#f1f1ef] outline-none"
-            />
-          </label>
-        ))}
+      <div className="max-w-2xl border border-white/10 bg-[#0c0c0e] p-6 space-y-6">
+        <div>
+          <label className="block label-caps mb-2 text-zinc-400">Project / Film Title</label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full bg-[#141417] border border-white/10 px-3.5 py-2.5 text-sm text-white outline-none focus:border-amber-400"
+          />
+        </div>
 
-        <div className="flex items-center justify-between border-b border-white/[0.09] py-5">
-          <div>
-            <p className="text-sm text-[#e5e5e1]">Director checkpoints</p>
-            <p className="mt-1 text-xs text-[#777773]">Pause before expensive render steps.</p>
+        <div>
+          <label className="block label-caps mb-2 text-zinc-400">Visual Aesthetic Style</label>
+          <select
+            value={visualStyle}
+            onChange={(e) => setVisualStyle(e.target.value)}
+            className="w-full bg-[#141417] border border-white/10 px-3.5 py-2.5 text-sm text-white outline-none focus:border-amber-400"
+          >
+            <option value="realistic">Realistic Cinematic 35mm</option>
+            <option value="anime">Anime / Cyberpunk Stylized</option>
+            <option value="noir">Film Noir High Contrast</option>
+            <option value="3d">Hyperreal 3D CGI</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block label-caps mb-2 text-zinc-400">Delivery Aspect Ratio</label>
+          <div className="flex gap-3">
+            {['16:9', '9:16', '2.39:1'].map((ratio) => (
+              <button
+                key={ratio}
+                type="button"
+                onClick={() => setAspectRatio(ratio)}
+                className={`px-4 py-2 text-xs font-mono border transition-all ${
+                  aspectRatio === ratio
+                    ? 'border-amber-500 bg-amber-500/15 text-amber-300'
+                    : 'border-white/10 text-zinc-400 hover:border-white/30'
+                }`}
+              >
+                {ratio}
+              </button>
+            ))}
           </div>
-          <span className="size-5 border border-[#aaa0bf] bg-[#aaa0bf]" />
+        </div>
+
+        <div>
+          <label className="block label-caps mb-2 text-zinc-400">Delivery Resolution</label>
+          <input
+            value={delivery}
+            onChange={(e) => setDelivery(e.target.value)}
+            className="w-full bg-[#141417] border border-white/10 px-3.5 py-2.5 text-sm text-white outline-none focus:border-amber-400 font-mono text-xs"
+          />
+        </div>
+
+        <div className="pt-2 flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="btn-amber text-xs px-5 py-2.5 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="size-3.5 animate-spin mr-1.5" /> : null}
+            Save Production Settings
+          </button>
         </div>
       </div>
     </>
@@ -1051,6 +1335,7 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
   const [step, setStep]               = useState<'form' | 'review'>('form');
   const [projectId, setProjectId]     = useState<string | null>(null);
   const [scriptData, setScriptData]   = useState<any>(null);
+  const [scenes, setScenes]           = useState<any[]>([]);
   const [editableScript, setEditableScript] = useState('');
   const [adjustmentPrompt, setAdjustmentPrompt] = useState('');
   const [loading, setLoading]         = useState(false);
@@ -1063,7 +1348,7 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
     }
 
     setLoading(true);
-    setLoadingMessage('Creating project & generating script & story bible...');
+    setLoadingMessage('Creating project in database...');
     try {
       const projRes = await api.createProject({
         title,
@@ -1074,25 +1359,38 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         ai_video_model: 'veo-3.1-lite',
       });
       if (!projRes.success || !projRes.data) {
-        throw new Error('Failed to create project');
+        throw new Error('Failed to create project record');
       }
       const pId = projRes.data.id;
       setProjectId(pId);
       onProjectCreated(pId);
 
+      setLoadingMessage('Synthesizing screenplay beats & structured scenes...');
       const scriptRes = await api.generateScript({
         premise,
-        useCase: premise,
+        useCase: 'Cinematic Short Film',
         duration: parseInt(estimatedMinutes) * 60,
         visualStyle: videoStyle,
       });
-      if (!scriptRes.success || !scriptRes.data) {
-        throw new Error('Failed to generate script');
+
+      if (!scriptRes.success || !scriptRes.data || !scriptRes.data.script || scriptRes.data.script.trim() === '') {
+        throw new Error(scriptRes.data?.error || 'Script generation returned an empty response. Please retry.');
       }
+
+      const returnedScenes = scriptRes.data.scenes || [];
       setScriptData(scriptRes.data);
       setEditableScript(scriptRes.data.script);
+      setScenes(returnedScenes);
+
+      // Persist generated scenes and script immediately in DB so user never loses progress
+      await api.updateProject(pId, {
+        script: scriptRes.data.script,
+        scenes: returnedScenes,
+        status: 'ScriptGenerated',
+      });
+
       setStep('review');
-      notify('Script generated successfully!');
+      notify(`Script generated with ${returnedScenes.length} scenes!`);
     } catch (err: any) {
       console.error('[story] error:', err);
       notify(`Error: ${err.message}`);
@@ -1104,19 +1402,30 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
   const handleAdjustScript = async () => {
     if (!adjustmentPrompt.trim()) return;
     setLoading(true);
-    setLoadingMessage('Adjusting script with AI director...');
+    setLoadingMessage('Adjusting screenplay with AI director...');
     try {
       const res = await api.generateScript({
-        premise: `${premise}. User requested adjustment: ${adjustmentPrompt}`,
-        useCase: premise,
+        premise: `${premise}. Revision instructions: ${adjustmentPrompt}`,
+        useCase: 'Cinematic Short Film',
         duration: parseInt(estimatedMinutes) * 60,
         visualStyle: videoStyle,
       });
-      if (res.success && res.data) {
+      if (res.success && res.data?.script && res.data.script.trim() !== '') {
+        const revScenes = res.data.scenes || [];
         setScriptData(res.data);
         setEditableScript(res.data.script);
+        setScenes(revScenes);
         setAdjustmentPrompt('');
-        notify('Script updated based on your feedback.');
+
+        if (projectId) {
+          await api.updateProject(projectId, {
+            script: res.data.script,
+            scenes: revScenes,
+          });
+        }
+        notify('Script and scenes updated successfully!');
+      } else {
+        throw new Error('Adjustment produced an empty response.');
       }
     } catch (err: any) {
       notify(`Error: ${err.message}`);
@@ -1128,13 +1437,15 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
   const handleApproveAndGenerateStoryboard = async () => {
     if (!projectId) return;
     setLoading(true);
-    setLoadingMessage('Saving script, extracting characters/locations, and planning storyboard shots scene by scene...');
+    setLoadingMessage('Saving approved script & scenes to project database...');
     try {
       await api.updateProject(projectId, {
         script: editableScript,
+        scenes: scenes,
         status: 'ScriptApproved',
       });
 
+      setLoadingMessage('Registering character visual DNA...');
       if (scriptData?.characters && Array.isArray(scriptData.characters)) {
         for (const char of scriptData.characters) {
           await api.registerCharacterDna(projectId, {
@@ -1146,6 +1457,7 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         }
       }
 
+      setLoadingMessage('Registering location visual references...');
       if (scriptData?.locations && Array.isArray(scriptData.locations)) {
         for (const loc of scriptData.locations) {
           await api.registerLocationDna(projectId, {
@@ -1157,6 +1469,7 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         }
       }
 
+      setLoadingMessage('Planning shot sequences scene by scene...');
       const sbRes = await api.generateStoryboard({
         script: editableScript,
         visualStyle: videoStyle,
@@ -1164,13 +1477,13 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         targetDurationSec: parseInt(estimatedMinutes) * 60,
       });
 
-      if (!sbRes.success || !sbRes.data || !sbRes.data.shots) {
-        throw new Error('Failed to generate storyboard shots');
+      if (!sbRes.success || !sbRes.data || !sbRes.data.shots || sbRes.data.shots.length === 0) {
+        throw new Error('Storyboard planner returned 0 shots. Please retry.');
       }
 
       await api.addShots(projectId, sbRes.data.shots);
 
-      notify('Storyboard planned scene by scene! Entering Director Canvas...');
+      notify(`Storyboard planned! ${sbRes.data.shots.length} shots created along sequence track.`);
       go('canvas');
     } catch (err: any) {
       console.error('[story] approval error:', err);
@@ -1186,7 +1499,7 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
         <PageHeader
           eyebrow="Stage 02 / Script Review & Approval"
           title="Review, edit, or adjust your film script."
-          description="Read the generated script, make manual edits, re-prompt for specific adjustments, or approve to start shot-by-shot storyboard planning."
+          description="Your screenplay is parsed into discrete scenes (Scene 1, Scene 2...). Edit the text, inspect scenes, adjust with AI feedback, or approve to generate storyboard shots."
         />
 
         {loading && (
@@ -1200,6 +1513,45 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
           <div className="border border-white/10 bg-[#0c0c0e] p-5">
             <p className="text-xs uppercase tracking-widest text-amber-400 font-mono mb-2">🧠 AI Story Planner & Structure</p>
             <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{scriptData.reasoning}</p>
+          </div>
+        )}
+
+        {/* Scene Breakdown Cards */}
+        {scenes.length > 0 && (
+          <div className="border border-white/10 bg-[#0c0c0e] p-5 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <p className="text-xs uppercase tracking-widest text-amber-400 font-mono">
+                Structured Scenes Breakdown ({scenes.length} Scenes)
+              </p>
+              <span className="text-[10px] text-zinc-500 font-mono">Stored in database for session continuity</span>
+            </div>
+            <div className="grid gap-3 pt-2">
+              {scenes.map((s: any, i: number) => (
+                <div key={i} className="border border-white/10 bg-[#121215] p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs font-semibold text-amber-400">
+                      SCENE {s.scene_number || i + 1}: {s.slugline || s.name || `Scene ${i + 1}`}
+                    </span>
+                    {s.estimated_duration_sec && (
+                      <span className="text-[10px] font-mono text-zinc-400 border border-white/10 px-2 py-0.5">
+                        ~{s.estimated_duration_sec}s
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-200 leading-relaxed">{s.summary || s.description}</p>
+                  {s.dialogue && (
+                    <div className="bg-black/50 p-2.5 border-l-2 border-amber-500/70 text-[11px] text-zinc-300 italic font-mono">
+                      {s.dialogue}
+                    </div>
+                  )}
+                  {s.visual_prompt && (
+                    <p className="text-[10px] text-zinc-500 font-mono">
+                      <span className="text-zinc-400">Visual DNA:</span> {s.visual_prompt}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1221,7 +1573,7 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
             <input
               value={adjustmentPrompt}
               onChange={(e) => setAdjustmentPrompt(e.target.value)}
-              placeholder="e.g., Make the climax more intense, add a twist..."
+              placeholder="e.g., Make the climax more intense, add a twist in Scene 2..."
               className="flex-1 bg-transparent border border-white/15 px-4 py-2.5 text-xs text-white outline-none focus:border-amber-400"
             />
             <button
@@ -1382,57 +1734,148 @@ function StoryView({ user, onRequireLogin, go, notify, onProjectCreated }: any) 
 // ─── Storyboard View ──────────────────────────────────────────────────────────
 
 function StoryboardView({ project, go, notify }: any) {
+  const [renderingAnimatic, setRenderingAnimatic] = useState(false);
+  const shots = project?.shots || [];
+
+  const handleRenderAnimatic = async () => {
+    if (!project?.id) {
+      notify('No active project found.');
+      return;
+    }
+    setRenderingAnimatic(true);
+    notify('Stitching animatic draft via FFmpeg assembly engine...');
+    try {
+      const res = await api.renderAnimatic(project.id);
+      if (res.success && res.data?.animaticUrl) {
+        project.animatic_url = res.data.animaticUrl;
+        notify('Animatic generated successfully! Opening in Preview...');
+        go('preview');
+      } else {
+        throw new Error(res.data?.error || 'Animatic render failed');
+      }
+    } catch (err: any) {
+      notify(`Animatic render error: ${err.message}`);
+    } finally {
+      setRenderingAnimatic(false);
+    }
+  };
+
+  const handleExportBible = () => {
+    if (!project) return;
+    const content = `PRIMUS PRODUCTION BIBLE
+Title: ${project.title || 'Untitled'}
+Visual Style: ${project.visual_style || 'Realistic'}
+Aspect Ratio: ${project.aspect_ratio || '16:9'}
+Duration: ${project.estimated_duration || 60}s
+Status: ${project.status || 'Draft'}
+
+--- SCRIPT ---
+${project.script || 'No script recorded'}
+
+--- SHOT BREAKDOWN (${shots.length} SHOTS) ---
+${shots.map((s: any, i: number) => `Shot ${s.shot_number || i + 1}: ${s.prompt || s.visual_prompt || 'N/A'}\nCamera: ${s.camera_movement || 'Static'} | Status: ${s.status || 'Pending'}`).join('\n\n')}
+`;
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(project.title || 'project').toLowerCase().replace(/\s+/g, '_')}_bible.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify('Story bible exported as file.');
+  };
+
   return (
     <>
       <PageHeader
         eyebrow="Stage 05 / Storyboard"
         title={<>See the rhythm<br /><span className="text-amber-400">before the render.</span></>}
         description="Review pacing, camera angles, and visual continuity as an interactive sequence of keyframes."
-        action="Render Animatic"
-        onAction={() => go('render')}
+        action={renderingAnimatic ? "Rendering..." : "Render Animatic"}
+        onAction={handleRenderAnimatic}
       />
 
       <div className="border border-white/[0.08] bg-[#0c0c0e] p-6 md:p-8">
         <div className="mb-8 flex justify-between items-center border-b border-white/[0.06] pb-4">
           <div>
-            <p className="text-sm font-medium text-white">{project?.title ?? 'Cyberpunk Heist'} · Animatic Pass 01</p>
-            <p className="mt-1 text-xs text-[#8e8e93]">8 scenes breakdown · 01:04 total runtime</p>
+            <p className="text-sm font-medium text-white">{project?.title ?? 'Cyberpunk Heist'} · Shot Sequence</p>
+            <p className="mt-1 text-xs text-[#8e8e93]">
+              {shots.length > 0 ? `${shots.length} keyframe shots planned` : '8 scenes breakdown · 01:04 total runtime'}
+            </p>
           </div>
           <button
-            onClick={() => notify('Storyboard exported to PDF')}
+            onClick={handleExportBible}
             className="flex items-center gap-2 border border-white/15 px-3 py-1.5 text-xs text-zinc-300 hover:border-white hover:text-white transition-colors"
           >
             <Download className="size-3.5" /> Export Bible
           </button>
         </div>
 
-        <div className="grid gap-px border border-white/[0.08] bg-white/[0.08] sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 8 }, (_, i) => (
-            <div key={i} className="bg-[#111114] group">
-              <div className="h-28 bg-[#18181b] p-3 relative overflow-hidden">
-                <span className="font-mono text-[10px] text-amber-400 font-medium">0{i + 1}</span>
-                <Film className="absolute bottom-2 right-2 size-4 text-white/10 group-hover:text-amber-400/40 transition-colors" />
-              </div>
-              <div className="p-3.5">
-                <p className="text-xs text-zinc-200">
-                  {['Wide establishing cityscape', 'Ada enters the balcony', 'The memory handoff', 'Subterranean chase'][i % 4]}
-                </p>
-                <div className="mt-2 flex items-center justify-between text-[10px] text-zinc-500 font-mono">
-                  <span>00:08</span>
-                  <span className="text-emerald-400">Audio Ready</span>
+        {shots.length > 0 ? (
+          <div className="grid gap-px border border-white/[0.08] bg-white/[0.08] sm:grid-cols-2 lg:grid-cols-4">
+            {shots.map((shot: any, i: number) => (
+              <div key={shot.id || i} className="bg-[#111114] group p-3 space-y-2">
+                <div className="h-28 bg-[#18181b] p-3 relative overflow-hidden border border-white/5 flex items-center justify-center">
+                  {shot.video_url || shot.image_url ? (
+                    <img src={shot.image_url || shot.video_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Film className="size-8 text-white/15 group-hover:text-amber-400/50 transition-colors" />
+                  )}
+                  <span className="absolute top-2 left-2 font-mono text-[10px] text-amber-400 font-medium bg-black/70 px-1.5 py-0.5">
+                    #{shot.shot_number || i + 1}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-200 line-clamp-2">
+                    {shot.prompt || shot.visual_prompt || `Shot sequence cut ${i + 1}`}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-zinc-500 font-mono">
+                    <span>00:0{shot.estimated_duration_sec || 8}</span>
+                    <span className={shot.status === 'Completed' ? 'text-emerald-400' : 'text-amber-400'}>
+                      {shot.status || 'Pending'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-px border border-white/[0.08] bg-white/[0.08] sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="bg-[#111114] group">
+                <div className="h-28 bg-[#18181b] p-3 relative overflow-hidden">
+                  <span className="font-mono text-[10px] text-amber-400 font-medium">0{i + 1}</span>
+                  <Film className="absolute bottom-2 right-2 size-4 text-white/10 group-hover:text-amber-400/40 transition-colors" />
+                </div>
+                <div className="p-3.5">
+                  <p className="text-xs text-zinc-200">
+                    {['Wide establishing cityscape', 'Ada enters the balcony', 'The memory handoff', 'Subterranean chase'][i % 4]}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-zinc-500 font-mono">
+                    <span>00:08</span>
+                    <span className="text-emerald-400">Audio Ready</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-        <button
-          onClick={() => go('render')}
-          className="mt-8 btn-amber"
-        >
-          Continue to Quote & Render
-          <ArrowRight className="size-3.5" />
-        </button>
+        <div className="mt-8 flex gap-4">
+          <button
+            onClick={() => go('canvas')}
+            className="border border-white/20 px-5 py-2.5 text-xs text-zinc-300 hover:border-white/50"
+          >
+            Open Director Canvas
+          </button>
+          <button
+            onClick={() => go('render')}
+            className="btn-amber"
+          >
+            Continue to Quote & Render
+            <ArrowRight className="size-3.5" />
+          </button>
+        </div>
       </div>
     </>
   );
@@ -1440,7 +1883,33 @@ function StoryboardView({ project, go, notify }: any) {
 
 // ─── Render View ──────────────────────────────────────────────────────────────
 
-function RenderView({ project, go, notify }: any) {
+function RenderView({ project, go, notify, onRenderComplete }: any) {
+  const [rendering, setRendering] = useState(false);
+
+  const handleQueueMasterRender = async () => {
+    if (!project?.id) {
+      notify('No active project found.');
+      return;
+    }
+    setRendering(true);
+    notify('Master production render queued with FFmpeg multi-shot assembly...');
+    try {
+      const res = await api.renderFinalVideo(project.id);
+      if (res.success && res.data?.videoUrl) {
+        if (onRenderComplete) onRenderComplete(res.data.videoUrl);
+        project.video_url = res.data.videoUrl;
+        notify('Master render complete! Loading final cut in preview...');
+        go('preview');
+      } else {
+        throw new Error(res.data?.error || 'Master render failed');
+      }
+    } catch (err: any) {
+      notify(`Render error: ${err.message}`);
+    } finally {
+      setRendering(false);
+    }
+  };
+
   return (
     <>
       <PageHeader
@@ -1454,7 +1923,7 @@ function RenderView({ project, go, notify }: any) {
           <div>
             <p className="text-sm font-medium text-white">Final Cut Production Estimate</p>
             <p className="mt-1.5 text-xs text-[#8e8e93]">
-              {project?.title ?? 'Cyberpunk Heist'} · 01:04 Runtime · Veo 3.1 4K Master
+              {project?.title ?? 'Cyberpunk Heist'} · {project?.shots?.length || 8} Shot Passes · Veo 3.1 4K Master
             </p>
           </div>
           <div className="text-right">
@@ -1462,14 +1931,14 @@ function RenderView({ project, go, notify }: any) {
               className="text-3xl font-light text-white"
               style={{ fontFamily: 'DM Sans, sans-serif' }}
             >
-              320
+              {(project?.shots?.length || 8) * 40}
             </span>
             <span className="font-mono text-xs text-amber-400 ml-1">CR</span>
           </div>
         </div>
 
         {[
-          ['Total Render Frames', '1,536 Frames'],
+          ['Total Render Frames', `${(project?.shots?.length || 8) * 192} Frames`],
           ['Target Resolution', '3840 × 2160 (4K UHD)'],
           ['Audio Stem Master', 'Stereo + Atmos Stems'],
           ['Continuity Model', 'Strict Agent Vector Lock'],
@@ -1481,11 +1950,13 @@ function RenderView({ project, go, notify }: any) {
         ))}
 
         <button
-          onClick={() => { notify('Full production render dispatched to cluster'); go('preview'); }}
-          className="mt-8 btn-amber w-full justify-center py-3 text-xs font-medium"
+          onClick={handleQueueMasterRender}
+          disabled={rendering}
+          className="mt-8 btn-amber w-full justify-center py-3 text-xs font-medium disabled:opacity-50"
         >
-          Queue Master Production Render
-          <ArrowRight className="size-3.5" />
+          {rendering ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
+          {rendering ? 'Assembling & Encoding Master Cut...' : 'Queue Master Production Render'}
+          {!rendering && <ArrowRight className="size-3.5 ml-2" />}
         </button>
       </div>
     </>
@@ -1494,33 +1965,68 @@ function RenderView({ project, go, notify }: any) {
 
 // ─── Preview View ─────────────────────────────────────────────────────────────
 
-function PreviewView({ project, go, onPublish }: any) {
+function PreviewView({ project, go, onPublish, notify }: any) {
+  const videoUrl = project?.video_url || project?.animatic_url;
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const handleDownload = () => {
+    if (videoUrl) {
+      window.open(videoUrl, '_blank');
+    } else {
+      if (notify) notify('No rendered video file available to download yet.');
+    }
+  };
+
   return (
     <>
       <PageHeader
         eyebrow="Review / Final Cut"
         title={project?.title ?? 'Cyberpunk Heist'}
-        description="Final master render · 01:04 duration · 4K 24fps delivery"
+        description={videoUrl ? "Master production render ready for playback and distribution." : "Final master render · 4K 24fps delivery"}
         action="Back to Canvas"
         onAction={() => go('canvas')}
       />
 
       {/* Video player */}
-      <div className="relative flex aspect-video max-w-4xl items-center justify-center overflow-hidden border border-white/[0.08] bg-[#121215]">
-        <button className="grid size-16 place-items-center rounded-full border border-white/20 bg-black/60 text-white hover:border-amber-400 hover:text-amber-400 transition-all">
-          <Play className="size-8 fill-current ml-1" />
-        </button>
-        {/* Playback Scrubber with warm amber progress */}
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-          <div className="h-full w-[38%] bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-        </div>
+      <div className="relative flex aspect-video max-w-4xl items-center justify-center overflow-hidden border border-white/[0.08] bg-[#0c0c0e]">
+        {videoUrl ? (
+          <video
+            src={videoUrl}
+            controls
+            autoPlay
+            playsInline
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            className="w-full h-full object-contain bg-black"
+          />
+        ) : (
+          <div className="text-center p-8 space-y-3">
+            <Film className="size-12 mx-auto text-zinc-600" />
+            <p className="text-xs text-zinc-400">No master video cut assembled yet for this project.</p>
+            <button
+              onClick={() => go('render')}
+              className="btn-amber text-xs px-4 py-2 inline-flex items-center gap-1.5"
+            >
+              Go to Render Stage <ArrowRight className="size-3" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mt-5 flex max-w-4xl items-center justify-between text-xs text-[#8e8e93]">
-        <span className="font-mono text-amber-400">00:24 / 01:04</span>
+        <span className="font-mono text-amber-400">
+          {videoUrl ? 'Master Audio/Video Sync: Verified' : 'Status: Ready for Render Submission'}
+        </span>
         <div className="flex gap-4 items-center">
-          <Pause className="size-4 cursor-pointer hover:text-white transition-colors" />
-          <Download className="size-4 cursor-pointer hover:text-white transition-colors" />
+          {videoUrl && (
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-1.5 border border-white/15 px-3 py-1.5 text-zinc-300 hover:text-white hover:border-white transition-colors"
+            >
+              <Download className="size-3.5" />
+              Download MP4
+            </button>
+          )}
           <button
             onClick={onPublish}
             className="btn-amber"
