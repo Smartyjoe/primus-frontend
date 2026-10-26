@@ -181,6 +181,33 @@ export const api = {
     return handleResponse<{ success: boolean; data: { shots: any[]; reasoning?: string } }>(res);
   },
 
+  async enhanceScript(data: { script: string; visualStyle?: string; useCase?: string; characters?: any[]; locations?: any[] }) {
+    const res = await fetch(`${API_BASE_URL}/ai/enhance`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return handleResponse<{ success: boolean; data: any }>(res);
+  },
+
+  async renderFinalVideo(projectId: string) {
+    const res = await fetch(`${API_BASE_URL}/assembly/render-video`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ projectId }),
+    });
+    return handleResponse<{ success: boolean; data: any }>(res);
+  },
+
+  async renderAnimatic(projectId: string) {
+    const res = await fetch(`${API_BASE_URL}/assembly/render-animatic`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ projectId }),
+    });
+    return handleResponse<{ success: boolean; data: any }>(res);
+  },
+
   // ─── Video & Image Generation ────────────────────────────────────────────────
   async queueVideoGeneration(data: {
     projectId: string;
